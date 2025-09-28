@@ -1,0 +1,10 @@
+uvicorn
+python-dotenv
+fastapi
+pinecone-client
+langchain 
+langgraph 
+langchain-google-genai 
+pinecone-client
+websockets
+wsproto
