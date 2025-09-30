@@ -8,3 +8,5 @@ langchain-google-genai
 pinecone-client
 websockets
 wsproto
+langsmith
+langchain-groq

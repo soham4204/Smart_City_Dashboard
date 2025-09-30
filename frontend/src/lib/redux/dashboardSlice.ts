@@ -1,13 +1,13 @@
 // frontend/src/lib/redux/dashboardSlice.ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-// Define the types to match our backend models
+// --- Define the types for our data ---
+
 interface LightPole {
     id: string;
     location: [number, number];
     brightness: number;
     status: string;
-    // --- ADD THE MISSING FIELDS HERE ---
     priority: string;
     manual_override: boolean;
     group: string;
@@ -20,30 +20,42 @@ interface Zone {
     poles: LightPole[];
 }
 
+// --- NEW: Type definition for the agent's output ---
+interface AgentResult {
+  anomalies?: { anomalies: string[] };
+  decision?: { decision: string };
+  final_verdict?: string;
+}
+
+// --- MODIFIED: The main state now includes a property for the latest agent run ---
 interface DashboardState {
     zones: Zone[];
     status: 'idle' | 'loading' | 'succeeded' | 'failed';
+    latestAgentRun: AgentResult | null;
 }
 
 const initialState: DashboardState = {
     zones: [],
     status: 'idle',
+    latestAgentRun: null, // Initialize the new property
 };
 
 const dashboardSlice = createSlice({
     name: 'dashboard',
     initialState,
     reducers: {
-        // Reducer to handle setting the loading state
         setLoading(state) {
             state.status = 'loading';
         },
-        // Reducer to handle setting the final state
-        setDashboardState(state, action: PayloadAction<Zone[]>) {
-            state.zones = action.payload;
+        // --- MODIFIED: The payload is now an object with zones and an optional agentResult ---
+        setDashboardState(state, action: PayloadAction<{ zones: Zone[], agentResult?: AgentResult }>) {
+            state.zones = action.payload.zones;
+            // If the payload from the websocket includes agent results, update that state too
+            if (action.payload.agentResult) {
+                state.latestAgentRun = action.payload.agentResult;
+            }
             state.status = 'succeeded';
         },
-        // Reducer to handle errors
         setError(state) {
             state.status = 'failed';
         }

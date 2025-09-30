@@ -82,15 +82,17 @@ export function useWebSocket() {
       };
 
       socketRef.current.onerror = (event) => {
-        console.error('❌ WebSocket error:', {
+        console.error('❌ WebSocket error event:', event);
+        console.error('❌ WebSocket error details:', {
           readyState: socketRef.current?.readyState,
           url: WEBSOCKET_URL,
           timestamp: new Date().toISOString()
         });
-        
+
         setLastError(`Connection error to ${WEBSOCKET_URL}`);
         setStatus('error');
       };
+
 
     } catch (error) {
       console.error('❌ Failed to create WebSocket connection:', error);
