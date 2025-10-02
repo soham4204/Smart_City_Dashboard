@@ -1,0 +1,15 @@
+import axios from "axios";
+
+const API_URL = "http://localhost:5001/api/lighting";  // Flask backend
+
+export const getLightingStatus = async () => {
+  return await axios.get(`${API_URL}/status`);
+};
+
+export const getEnergyUsage = async () => {
+  return await axios.get(`${API_URL}/energy`);
+};
+
+export const toggleLight = async (lightId, state) => {
+  return await axios.post(`${API_URL}/toggle`, { lightId, state });
+};
