@@ -4,7 +4,6 @@
 import { useSelector } from 'react-redux';
 import type { RootState } from '@/lib/redux/store';
 import dynamic from 'next/dynamic';
-import { useDataPolling } from '@/hooks/useDataPolling'; // Import the new polling hook
 
 // Dynamically import the map component with no SSR
 const MapComponent = dynamic(() => import('./MapComponent'), {
@@ -15,11 +14,10 @@ const MapComponent = dynamic(() => import('./MapComponent'), {
 export default function InteractiveMap() {
   const { zones, status } = useSelector((state: RootState) => state.dashboard);
 
-  // Activate the data polling hook. This replaces both the initial fetch and the websocket.
-  useDataPolling();
+  // The polling hook is no longer needed; data is now pushed via WebSocket.
 
   if (status === 'idle' || status === 'loading') {
-    return <div className="h-full w-full bg-gray-800 flex items-center justify-center">Loading Map Data...</div>;
+    return <div className="h-full w-full bg-gray-800 flex items-center justify-center">Connecting to live feed...</div>;
   }
 
   if (status === 'failed') {

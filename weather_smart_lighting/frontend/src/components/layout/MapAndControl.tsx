@@ -2,7 +2,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import ZoneControlPanel from '../panels/ZoneControlPanel';
+import AnalysisHub from '../analytics/AnalysisHub'; // Import the new hub
 
 // Dynamically import map component to prevent SSR issues with Leaflet
 const InteractiveMap = dynamic(() => import('../InteractiveMap'), {
@@ -18,9 +18,9 @@ export default function MapAndControls() {
         <InteractiveMap />
       </div>
       
-      {/* Controls Column */}
-      <div className="lg:col-span-1">
-        <ZoneControlPanel />
+      {/* Controls Column is now the Analysis Hub */}
+      <div className="lg:col-span-1 h-[600px]">
+        <AnalysisHub />
       </div>
     </div>
   );
