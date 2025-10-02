@@ -1,13 +1,13 @@
 # backend/agent.py
 import os
 import json
-from typing import TypedDict
+from typing import TypedDict, Dict, Any
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, END
 
 # Import your real tool functions
-from tools import collector_tools, preprocessor_tools, sensor_fusion_tools, anomaly_detection_tools, decision_engine_tools
+from tools import collector_tools, preprocessor_tools, sensor_fusion_tools, anomaly_detection_tools, decision_engine_tools, state_keys
 
 load_dotenv()
 
@@ -18,73 +18,95 @@ class AgentState(TypedDict):
     location: str
     zone_id: str
     config: dict
+    
     # Tool outputs that need to be passed between steps
     weather_data: dict
     cctv_data: dict
     iot_data: dict
+    
+    # Preprocessing outputs
     pipeline_report: dict
+    normalized_data: dict
+    filtered_data: dict
+    validation_report: dict
+    quality_report: dict
+
+    # Sensor Fusion outputs
     sensor_fusion_report: dict
+    fused_environmental_state: dict
+    situational_awareness: dict
+
+    # Anomaly Detection output
     anomaly_assessment: dict
+    
+    # Decision Engine output
     decision_analysis: dict
+    
     # Final actions
     control_action: dict
     final_verdict: str
 
+
 # --- 2. Initialize Models ---
 llm = ChatGroq(model_name="llama-3.1-8b-instant", temperature=0)
-# --- MODIFIED: Updated to a current, powerful model ---
-judge_llm = ChatGroq(model_name="llama-3.1-70b-versatile", temperature=0.1)
+judge_llm = ChatGroq(model_name="llama-3.1-8b-instant", temperature=0.1)
 
 
 # --- 3. Define the Nodes for the Enhanced Pipeline ---
 
-def data_collection_node(state: AgentState):
+def data_collection_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Data Collection---")
-    # The tools will modify the 'state' dictionary in place by reference
     collector_tools.get_live_weather(state['location'], state)
     collector_tools.get_enhanced_synthetic_cctv_data(state['zone_id'], state)
     collector_tools.get_enhanced_synthetic_iot_sensor_data(state['zone_id'], state)
     
-    # --- MODIFIED: Return the data at the top level of the state ---
     return {
-        "weather_data": state.get("weather_data", {}),
-        "cctv_data": state.get("cctv_data", {}),
-        "iot_data": state.get("iot_data", {})
+        state_keys.RAW_WEATHER_DATA: state.get(state_keys.RAW_WEATHER_DATA, {}),
+        state_keys.RAW_CCTV_DATA: state.get(state_keys.RAW_CCTV_DATA, {}),
+        state_keys.RAW_IOT_DATA: state.get(state_keys.RAW_IOT_DATA, {})
     }
 
-def data_processing_node(state: AgentState):
+def data_processing_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Data Preprocessing---")
     report = preprocessor_tools.process_complete_data_pipeline(state)
-    # The preprocessor tool modifies 'state' with keys like 'normalized_data', 'filtered_data', etc.
-    return {"pipeline_report": report}
+    # Return all keys that the tool adds to the state
+    return {
+        state_keys.PREPROCESSING_REPORT: report,
+        "normalized_data": state.get("normalized_data", {}),
+        state_keys.PREPROCESSED_DATA: state.get(state_keys.PREPROCESSED_DATA, {}),
+        "validation_report": state.get("validation_report", {}),
+        "quality_report": state.get("quality_report", {})
+    }
 
-def sensor_fusion_node(state: AgentState):
+def sensor_fusion_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Sensor Fusion---")
     report = sensor_fusion_tools.process_complete_sensor_fusion(state)
-    return {"sensor_fusion_report": report}
+    # Return all keys that the tool adds to the state
+    return {
+        state_keys.SENSOR_FUSION_REPORT: report,
+        state_keys.FUSED_STATE: state.get(state_keys.FUSED_STATE, {}),
+        "situational_awareness": state.get("situational_awareness", {})
+    }
 
-def anomaly_detection_node(state: AgentState):
+def anomaly_detection_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Anomaly Detection---")
     anomaly_detection_tools.perform_comprehensive_anomaly_detection(state)
-    return {"anomaly_assessment": state.get("anomaly_assessment", {})}
+    return {state_keys.ANOMALY_ASSESSMENT: state.get(state_keys.ANOMALY_ASSESSMENT, {})}
 
-def decision_engine_node(state: AgentState):
+def decision_engine_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Making Decision with RAG---")
     decision_engine_tools.perform_comprehensive_decision_analysis(state)
-    return {"decision_analysis": state.get("decision_analysis", {})}
+    return {state_keys.DECISION_ANALYSIS: state.get(state_keys.DECISION_ANALYSIS, {})}
 
-def control_executor_node(state: AgentState):
+def control_executor_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Control Executor---")
-    # This is a placeholder - we will build this next
-    decision_analysis = state.get("decision_analysis", {})
+    decision_analysis = state.get(state_keys.DECISION_ANALYSIS, {})
     recommendations = decision_analysis.get("operational_recommendations", [])
     
-    # Simple logic to parse a brightness recommendation
     brightness = 85 # Default
     for rec in recommendations:
         if "brightness" in rec.lower():
             try:
-                # Example: "Increase light brightness to 95% for visibility"
                 percent_index = rec.find('%')
                 if percent_index != -1:
                     num_str = rec[:percent_index].split()[-1]
@@ -95,12 +117,18 @@ def control_executor_node(state: AgentState):
 
     return {"control_action": {"brightness": brightness}}
 
-def system_monitor_node(state: AgentState):
+def system_monitor_node(state: AgentState) -> Dict[str, str]:
     print("---NODE: System Monitor (LLM Judge)---")
-    summary = state.get("anomaly_assessment", {}).get("summary", "No summary.")
-    decision_analysis = state.get("decision_analysis", {})
-    decision = decision_analysis.get("operational_recommendations", ["No specific action."])[0]
+    summary = state.get(state_keys.ANOMALY_ASSESSMENT, {}).get("summary", "No summary.")
+    decision_analysis = state.get(state_keys.DECISION_ANALYSIS, {})
     
+    # Defensive check to prevent IndexError
+    recommendations = decision_analysis.get("operational_recommendations", [])
+    if recommendations:
+        decision = recommendations[0]
+    else:
+        decision = "No specific action recommended; maintaining normal operations."
+        
     prompt = f"""
     You are an expert safety evaluator.
     Current Situation: "{summary}"

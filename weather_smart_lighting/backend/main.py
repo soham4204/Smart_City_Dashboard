@@ -79,6 +79,18 @@ def log_event(message: str):
 def read_root():
     return {"status": "API is running"}
 
+@app.get("/api/v1/agent/logs")
+async def get_agent_logs():
+    """Reads and returns the content of the agent events log file."""
+    try:
+        with open("events.log", "r") as f:
+            # Read lines and reverse them to show the latest first
+            logs = f.readlines()[::-1]
+            return {"logs": "".join(logs)}
+    except FileNotFoundError:
+        return {"logs": "Log file not found."}
+
+
 @app.get("/api/v1/dashboard/initial-state", response_model=DashboardState)
 async def get_initial_state():
     return MOCK_DASHBOARD_STATE
@@ -135,16 +147,12 @@ async def simulate_weather(request: SimulationRequest):
 
     # ✅ Build enriched payload for WebSocket broadcast
     payload = {
-        "zones": MOCK_DASHBOARD_STATE.model_dump()["zones"],
-        "agentResult": {
-            "anomalies": result.get("anomalies"),
-            "decision": result.get("decision"),
-            "final_verdict": verdict,
-        },
+        "zones": MOCK_DASHBOARD_STATE.model_dump(),
+        "agentResult": result,
     }
 
-    # Send to all active websocket clients
-    await manager.broadcast(json.dumps(payload))
+    # Send to all active websocket clients, handling datetime objects
+    await manager.broadcast(json.dumps(payload, default=str))
     
     return {
         "message": "Simulation successful", 
@@ -165,17 +173,18 @@ async def set_manual_override(pole_id: str, request: OverrideRequest):
                 
                 # UPDATED: .dict() is deprecated, use .model_dump()
                 updated_state_dict = MOCK_DASHBOARD_STATE.model_dump()
-                await manager.broadcast(json.dumps(updated_state_dict))
+                await manager.broadcast(json.dumps({"zones": updated_state_dict}))
                 return {"success": True, "pole_id": pole_id}
     
     return {"success": False, "message": "Pole not found"}
 
-# @app.websocket("/ws/updates")
-# async def websocket_endpoint(websocket: WebSocket):
-#     await manager.connect(websocket)
-#     try:
-#         while True:
-#             await websocket.receive_text()
-#     except WebSocketDisconnect:
-#         manager.disconnect(websocket)
-#         print("Client disconnected")
+@app.websocket("/ws/updates")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep the connection alive
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        print("Client disconnected")

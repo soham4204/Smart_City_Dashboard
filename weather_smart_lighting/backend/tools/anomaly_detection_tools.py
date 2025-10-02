@@ -353,33 +353,35 @@ def perform_comprehensive_anomaly_detection(state: dict) -> Dict[str, Any]:
     logger.info("Starting comprehensive anomaly detection analysis")
     
     try:
-        # Read fusion results from state
-        fusion_result = state.get("sensor_fusion_report", {})
+        # CORRECTED: Directly access the fused state from where it's stored
+        fused_state = state.get("fused_environmental_state", {})
         
-        # Handle JSON strings
-        if isinstance(fusion_result, str):
+        # Handle JSON string case
+        if isinstance(fused_state, str):
             try:
-                fusion_result = json.loads(fusion_result)
+                fused_state = json.loads(fused_state)
             except json.JSONDecodeError:
-                fusion_result = {}
+                logger.warning("Failed to parse fused_environmental_state as JSON")
+                fused_state = {}
         
-        # CORRECTED: Navigate the nested structure to get the fused data
-        # The fusion data is inside fusion_report["fusion_steps"]["environmental_fusion"]
-        # The actual fused state with context keys is inside that
-        environmental_fusion_step = fusion_result.get("fusion_steps", {}).get("environmental_fusion", {})
-        fused_state = environmental_fusion_step if environmental_fusion_step.get("status") == "success" else {}
-
-
         if not fused_state:
-            # Fallback: try to read directly from state (useful for debugging)
-            fused_state = state.get("fused_environmental_state", {})
+            logger.warning("Fused environmental state is empty. Checking alternative locations...")
+            # Fallback: try reading from sensor_fusion_report if needed
+            fusion_result = state.get("sensor_fusion_report", {})
+            if isinstance(fusion_result, str):
+                try:
+                    fusion_result = json.loads(fusion_result)
+                except json.JSONDecodeError:
+                    fusion_result = {}
+            
+            # Try to extract from nested structure
+            environmental_fusion_step = fusion_result.get("fusion_steps", {}).get("environmental_fusion", {})
+            if environmental_fusion_step.get("status") == "success":
+                fused_state = environmental_fusion_step
         
         # Initialize anomaly collection
         all_anomalies = []
         
-        # --- START: THE MAIN CORRECTION ---
-        # Use the correct "_context" keys to get data for each anomaly check.
-
         # Detect environmental anomalies
         env_context = fused_state.get("environmental_context", {})
         if env_context:
@@ -401,14 +403,12 @@ def perform_comprehensive_anomaly_detection(state: dict) -> Dict[str, Any]:
             all_anomalies.extend(weather_anomalies)
             logger.info(f"Detected {len(weather_anomalies)} weather anomalies")
         
-        # --- END: THE MAIN CORRECTION ---
-
-        # Detect cross-modal anomalies (This part was already correct)
+        # Detect cross-modal anomalies
         if fused_state:
             cross_modal_anomalies = detect_cross_modal_anomalies(fused_state)
             all_anomalies.extend(cross_modal_anomalies)
             logger.info(f"Detected {len(cross_modal_anomalies)} cross-modal anomalies")
-        
+
         # Determine system status and alert levels
         system_status = determine_system_status(all_anomalies)
         alert_level = determine_alert_level(system_status, len(all_anomalies))
