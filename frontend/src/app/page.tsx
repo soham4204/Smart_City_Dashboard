@@ -1,5 +1,5 @@
 // frontend/src/app/page.tsx
-import Header from "@/components/layout/Header";
+// import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
 import DashboardMetrics from "@/components/analytics/DashboardMetrics";
 import MapAndControls from "@/components/layout/MapAndControl";

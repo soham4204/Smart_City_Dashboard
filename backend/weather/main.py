@@ -112,11 +112,9 @@ async def set_zone_config(zone_name: str, config: dict):
 
 @app.post("/api/v1/simulation/weather")
 async def simulate_weather(request: SimulationRequest):
-    # For now, we'll simulate for the first zone as an example
     sim_zone_name = MOCK_DASHBOARD_STATE.zones[0].name
     location = "Mumbai"
     
-    # FETCH the dynamic config for the zone being simulated
     config = ZONE_CONFIGS.get(sim_zone_name, {})
     
     log_event(f"Simulation Triggered | Zone: {sim_zone_name}, Scenario: {request.scenario}")
@@ -125,10 +123,9 @@ async def simulate_weather(request: SimulationRequest):
         "scenario": request.scenario,
         "location": location,
         "zone_id": MOCK_DASHBOARD_STATE.zones[0].id,
-        "config": config,  # Pass the dynamic config to the agent
+        "config": config,
     }
 
-    # Invoke the agent
     result = agent_app.invoke(inputs)
 
     control_action = result.get('control_action', {})
@@ -138,21 +135,18 @@ async def simulate_weather(request: SimulationRequest):
     log_event(f"Agent Decision | Brightness set to {new_brightness}%.")
     log_event(f"LLM Judge Verdict | {verdict}")
 
-    # Apply new brightness if valid
     if new_brightness is not None:
         for zone in MOCK_DASHBOARD_STATE.zones:
             for pole in zone.poles:
                 if pole.status == "ONLINE" and not pole.manual_override:
                     pole.brightness = new_brightness
 
-    # ✅ Build enriched payload for WebSocket broadcast
-    # FIXED: Send the zones list directly, not the whole state object
+    # Build a consistent and enriched payload for the WebSocket broadcast
     payload = {
         "zones": [zone.model_dump() for zone in MOCK_DASHBOARD_STATE.zones],
         "agentResult": result,
     }
 
-    # Send to all active websocket clients, handling datetime objects
     await manager.broadcast(json.dumps(payload, default=str))
     
     return {
