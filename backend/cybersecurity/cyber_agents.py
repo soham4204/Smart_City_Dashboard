@@ -11,11 +11,11 @@ import hashlib
 import re
 
 # Load API key from environment or use directly
-API_KEY = os.getenv("GROQ_API_KEY")
+groq_api_key = os.getenv("GROQ_API_KEY")
 
 # Initialize LLM for cybersecurity agents
 cyber_llm = ChatGroq(
-    api_key=API_KEY,
+    api_key=groq_api_key,
     temperature=0.1,  # Lower temperature for more consistent security decisions
     model_name="llama-3.1-8b-instant"
 )

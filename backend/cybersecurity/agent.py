@@ -15,11 +15,11 @@ class AgentState(TypedDict):
 
 # --- CHANGE: Initialize the LLM using Groq and the Llama 3 model ---
 # We are using Llama 3's 8B parameter model, which is fast and powerful.
-API_KEY = "your_api_key"
+groq_api_key = os.getenv("GROQ_API_KEY")
 
 # Initialize the ChatGroq client with the API key
 agent_app = ChatGroq(
-    api_key=API_KEY,
+    api_key=groq_api_key,
     temperature=0,
     model_name="llama-3.1-8b-instant"
 ) 

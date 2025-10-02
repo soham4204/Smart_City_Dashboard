@@ -51,3 +51,17 @@
 01:22:19 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: cyclone_alert
 01:22:26 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: cyclone_alert
 01:23:09 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: cyclone_alert
+06:07:17 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: heavy_rainfall
+06:07:23 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: dense_fog
+06:07:25 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: cyclone_alert
+06:07:27 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: clear_sky
+06:07:31 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: cyclone_alert
+06:07:45 PM | Manual Override | Pole: AIR-01 set to 10%
+06:07:45 PM | Manual Override | Pole: AIR-02 set to 10%
+06:07:45 PM | Manual Override | Pole: AIR-03 set to 10%
+06:07:45 PM | Manual Override | Pole: AIR-04 set to 10%
+06:07:45 PM | Manual Override | Pole: AIR-05 set to 10%
+06:09:12 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: heavy_rainfall
+06:09:14 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: dense_fog
+06:09:15 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: cyclone_alert
+06:11:10 PM | Simulation Triggered | Zone: CSM International Airport, Scenario: clear_sky
