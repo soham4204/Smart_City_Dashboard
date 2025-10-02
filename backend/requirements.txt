@@ -5,8 +5,10 @@ pinecone-client
 langchain 
 langgraph 
 langchain-google-genai 
-pinecone-client
 websockets
 wsproto
 langsmith
 langchain-groq
+sentence-transformers
+langchain-pinecone
+langchain-community

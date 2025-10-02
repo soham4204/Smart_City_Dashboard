@@ -1,117 +1,120 @@
 # backend/agent.py
 import os
 import json
-from typing import TypedDict, Annotated, List
-from langchain_core.messages import BaseMessage
+from typing import TypedDict
+from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, END
-from dotenv import load_dotenv
 
-from tools.weather_tools import collect_data, process_data, fuse_sensors, detect_anomalies, make_decision
+# Import your real tool functions
+from tools import collector_tools, preprocessor_tools, sensor_fusion_tools, anomaly_detection_tools, decision_engine_tools
 
-# --- ADD THIS DEBUGGING BLOCK ---
 load_dotenv()
-api_key_from_env = os.environ.get("GROQ_API_KEY")
-print("--------------------------------------------------")
-print(f"DEBUG: Attempting to load GROQ_API_KEY...")
-if api_key_from_env:
-    print(f"SUCCESS: Found GROQ_API_KEY starting with '{api_key_from_env[:4]}'.")
-else:
-    print("ERROR: GROQ_API_KEY was NOT FOUND in the environment.")
-print("--------------------------------------------------")
-# --- END DEBUGGING BLOCK ---
-# --- 1. Define the State for the Graph ---
-# This dictionary will be passed between all our nodes.
+
+# --- 1. Define the Comprehensive State ---
 class AgentState(TypedDict):
+    # Inputs
     scenario: str
     location: str
     zone_id: str
-    config: dict  # Configuration from the UI
-    raw_data: dict
-    processed_data: dict
-    fused_data: dict
-    anomalies: dict
-    decision: dict
-    control_action: str
+    config: dict
+    # Tool outputs that need to be passed between steps
+    weather_data: dict
+    cctv_data: dict
+    iot_data: dict
+    pipeline_report: dict
+    sensor_fusion_report: dict
+    anomaly_assessment: dict
+    decision_analysis: dict
+    # Final actions
+    control_action: dict
     final_verdict: str
 
-# --- 2. Initialize LLMs ---
-# Main agent LLM
+# --- 2. Initialize Models ---
 llm = ChatGroq(model_name="llama-3.1-8b-instant", temperature=0)
-# Independent LLM to act as the "Judge"
-judge_llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0.1)
+# --- MODIFIED: Updated to a current, powerful model ---
+judge_llm = ChatGroq(model_name="llama-3.1-70b-versatile", temperature=0.1)
 
 
-# --- 3. Define the Nodes (Workflow Steps) ---
+# --- 3. Define the Nodes for the Enhanced Pipeline ---
 
 def data_collection_node(state: AgentState):
-    print("---NODE: Collecting Data---")
-    raw_data = collect_data(state['location'], state['zone_id'])
-    return {"raw_data": raw_data}
+    print("---NODE: Data Collection---")
+    # The tools will modify the 'state' dictionary in place by reference
+    collector_tools.get_live_weather(state['location'], state)
+    collector_tools.get_enhanced_synthetic_cctv_data(state['zone_id'], state)
+    collector_tools.get_enhanced_synthetic_iot_sensor_data(state['zone_id'], state)
+    
+    # --- MODIFIED: Return the data at the top level of the state ---
+    return {
+        "weather_data": state.get("weather_data", {}),
+        "cctv_data": state.get("cctv_data", {}),
+        "iot_data": state.get("iot_data", {})
+    }
 
 def data_processing_node(state: AgentState):
-    print("---NODE: Processing Data---")
-    processed_data = process_data(state['raw_data'])
-    return {"processed_data": processed_data}
+    print("---NODE: Data Preprocessing---")
+    report = preprocessor_tools.process_complete_data_pipeline(state)
+    # The preprocessor tool modifies 'state' with keys like 'normalized_data', 'filtered_data', etc.
+    return {"pipeline_report": report}
 
 def sensor_fusion_node(state: AgentState):
-    print("---NODE: Fusing Sensor Data---")
-    fused_data = fuse_sensors(state['processed_data'])
-    return {"fused_data": fused_data}
+    print("---NODE: Sensor Fusion---")
+    report = sensor_fusion_tools.process_complete_sensor_fusion(state)
+    return {"sensor_fusion_report": report}
 
 def anomaly_detection_node(state: AgentState):
-    print("---NODE: Detecting Anomalies---")
-    anomalies = detect_anomalies(state['fused_data'])
-    return {"anomalies": anomalies}
+    print("---NODE: Anomaly Detection---")
+    anomaly_detection_tools.perform_comprehensive_anomaly_detection(state)
+    return {"anomaly_assessment": state.get("anomaly_assessment", {})}
 
 def decision_engine_node(state: AgentState):
-    print("---NODE: Making Decision---")
-    decision = make_decision(state['anomalies'], state['config'])
-    return {"decision": decision}
+    print("---NODE: Making Decision with RAG---")
+    decision_engine_tools.perform_comprehensive_decision_analysis(state)
+    return {"decision_analysis": state.get("decision_analysis", {})}
 
 def control_executor_node(state: AgentState):
-    print("---NODE: Executing Control Action---")
-    decision_text = state['decision'].get('decision', '').lower()
-    # Simple logic to parse the decision into an action
-    if "reduce" in decision_text and "70%" in decision_text:
-        action = {"brightness": 70}
-    else:
-        action = {"brightness": 85} # Default action
-    return {"control_action": action}
+    print("---NODE: Control Executor---")
+    # This is a placeholder - we will build this next
+    decision_analysis = state.get("decision_analysis", {})
+    recommendations = decision_analysis.get("operational_recommendations", [])
+    
+    # Simple logic to parse a brightness recommendation
+    brightness = 85 # Default
+    for rec in recommendations:
+        if "brightness" in rec.lower():
+            try:
+                # Example: "Increase light brightness to 95% for visibility"
+                percent_index = rec.find('%')
+                if percent_index != -1:
+                    num_str = rec[:percent_index].split()[-1]
+                    brightness = int(num_str)
+                    break
+            except (ValueError, IndexError):
+                continue
+
+    return {"control_action": {"brightness": brightness}}
 
 def system_monitor_node(state: AgentState):
-    """This node acts as our LLM Judge to evaluate the decision."""
     print("---NODE: System Monitor (LLM Judge)---")
-    
-    situation = state['fused_data'].get('situation')
-    decision = state['decision'].get('decision')
+    summary = state.get("anomaly_assessment", {}).get("summary", "No summary.")
+    decision_analysis = state.get("decision_analysis", {})
+    decision = decision_analysis.get("operational_recommendations", ["No specific action."])[0]
     
     prompt = f"""
-    You are an expert safety and efficiency evaluator for a smart city project.
-    Your task is to judge a decision made by an AI agent.
-
-    SITUATION:
-    "{situation}"
-
-    AGENT'S DECISION:
-    "{decision}"
-
-    Based on the situation, is this a reasonable, safe, and effective decision?
-    Respond with only one word: 'APPROVE' or 'REJECT', followed by a brief justification.
-    Example: APPROVE: The decision correctly addresses the high temperature by reducing energy load.
-    Example: REJECT: The decision ignores the severe traffic anomaly, which is a higher priority.
+    You are an expert safety evaluator.
+    Current Situation: "{summary}"
+    Agent's Recommended Action: "{decision}"
+    Is this a reasonable, safe, and effective action?
+    Respond with only 'APPROVE' or 'REJECT', followed by a brief justification.
     """
-    
     verdict = judge_llm.invoke(prompt).content
-    print(f"---JUDGE'S VERDICT: {verdict}---")
+    print(f"---JUDGE'S VERDICT: {verdict}")
     return {"final_verdict": verdict}
 
-
-# --- 4. Assemble the Graph ---
-
+# --- 4. Assemble and Compile the Graph ---
 workflow = StateGraph(AgentState)
 
-# Add the nodes
 workflow.add_node("data_collection", data_collection_node)
 workflow.add_node("data_processing", data_processing_node)
 workflow.add_node("sensor_fusion", sensor_fusion_node)
@@ -120,7 +123,6 @@ workflow.add_node("decision_engine", decision_engine_node)
 workflow.add_node("control_executor", control_executor_node)
 workflow.add_node("system_monitor", system_monitor_node)
 
-# Add the edges to define the flow
 workflow.set_entry_point("data_collection")
 workflow.add_edge("data_collection", "data_processing")
 workflow.add_edge("data_processing", "sensor_fusion")
@@ -130,5 +132,4 @@ workflow.add_edge("decision_engine", "control_executor")
 workflow.add_edge("control_executor", "system_monitor")
 workflow.add_edge("system_monitor", END)
 
-# Compile the graph
 agent_app = workflow.compile()
