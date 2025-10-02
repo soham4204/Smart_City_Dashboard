@@ -1,0 +1,43 @@
+# backend/requirements.txt
+
+# Core dependencies
+fastapi
+uvicorn[standard]
+websockets
+pydantic
+python-dotenv
+
+# LangChain and LangGraph for AI Agents
+langchain
+langchain-groq
+langgraph
+langchain-community
+
+# Groq API client
+groq
+
+# For async operations
+asyncio
+aiofiles
+
+# Utilities
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+
+# Date and time handling
+python-dateutil
+
+# For development
+pytest
+pytest-asyncio
+httpx
+
+# Optional: for enhanced logging
+loguru
+
+# Optional: for monitoring
+prometheus-client
+
+# CORS support (included with FastAPI but explicit for clarity)
+fastapi-cors
