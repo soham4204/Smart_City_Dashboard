@@ -18,12 +18,12 @@ class AgentState(TypedDict):
     location: str
     zone_id: str
     config: dict
-    
+
     # Tool outputs that need to be passed between steps
     weather_data: dict
     cctv_data: dict
     iot_data: dict
-    
+
     # Preprocessing outputs
     pipeline_report: dict
     normalized_data: dict
@@ -38,10 +38,10 @@ class AgentState(TypedDict):
 
     # Anomaly Detection output
     anomaly_assessment: dict
-    
+
     # Decision Engine output
     decision_analysis: dict
-    
+
     # Final actions
     control_action: dict
     final_verdict: str
@@ -59,11 +59,11 @@ def data_collection_node(state: AgentState) -> Dict[str, Any]:
     collector_tools.get_live_weather(state['location'], state)
     collector_tools.get_enhanced_synthetic_cctv_data(state['zone_id'], state)
     collector_tools.get_enhanced_synthetic_iot_sensor_data(state['zone_id'], state)
-    
+
     return {
-        state_keys.RAW_WEATHER_DATA: state.get(state_keys.RAW_WEATHER_DATA, {}),
-        state_keys.RAW_CCTV_DATA: state.get(state_keys.RAW_CCTV_DATA, {}),
-        state_keys.RAW_IOT_DATA: state.get(state_keys.RAW_IOT_DATA, {})
+        "weather_data": state.get("weather_data", {}),
+        "cctv_data": state.get("cctv_data", {}),
+        "iot_data": state.get("iot_data", {})
     }
 
 def data_processing_node(state: AgentState) -> Dict[str, Any]:
@@ -71,9 +71,9 @@ def data_processing_node(state: AgentState) -> Dict[str, Any]:
     report = preprocessor_tools.process_complete_data_pipeline(state)
     # Return all keys that the tool adds to the state
     return {
-        state_keys.PREPROCESSING_REPORT: report,
+        "pipeline_report": report,
         "normalized_data": state.get("normalized_data", {}),
-        state_keys.PREPROCESSED_DATA: state.get(state_keys.PREPROCESSED_DATA, {}),
+        "filtered_data": state.get("filtered_data", {}),
         "validation_report": state.get("validation_report", {}),
         "quality_report": state.get("quality_report", {})
     }
@@ -83,26 +83,26 @@ def sensor_fusion_node(state: AgentState) -> Dict[str, Any]:
     report = sensor_fusion_tools.process_complete_sensor_fusion(state)
     # Return all keys that the tool adds to the state
     return {
-        state_keys.SENSOR_FUSION_REPORT: report,
-        state_keys.FUSED_STATE: state.get(state_keys.FUSED_STATE, {}),
+        "sensor_fusion_report": report,
+        "fused_environmental_state": state.get("fused_environmental_state", {}),
         "situational_awareness": state.get("situational_awareness", {})
     }
 
 def anomaly_detection_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Anomaly Detection---")
     anomaly_detection_tools.perform_comprehensive_anomaly_detection(state)
-    return {state_keys.ANOMALY_ASSESSMENT: state.get(state_keys.ANOMALY_ASSESSMENT, {})}
+    return {"anomaly_assessment": state.get("anomaly_assessment", {})}
 
 def decision_engine_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Making Decision with RAG---")
     decision_engine_tools.perform_comprehensive_decision_analysis(state)
-    return {state_keys.DECISION_ANALYSIS: state.get(state_keys.DECISION_ANALYSIS, {})}
+    return {"decision_analysis": state.get("decision_analysis", {})}
 
 def control_executor_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Control Executor---")
-    decision_analysis = state.get(state_keys.DECISION_ANALYSIS, {})
+    decision_analysis = state.get("decision_analysis", {})
     recommendations = decision_analysis.get("operational_recommendations", [])
-    
+
     brightness = 85 # Default
     for rec in recommendations:
         if "brightness" in rec.lower():
@@ -119,16 +119,16 @@ def control_executor_node(state: AgentState) -> Dict[str, Any]:
 
 def system_monitor_node(state: AgentState) -> Dict[str, str]:
     print("---NODE: System Monitor (LLM Judge)---")
-    summary = state.get(state_keys.ANOMALY_ASSESSMENT, {}).get("summary", "No summary.")
-    decision_analysis = state.get(state_keys.DECISION_ANALYSIS, {})
-    
+    summary = state.get("anomaly_assessment", {}).get("summary", "No summary.")
+    decision_analysis = state.get("decision_analysis", {})
+
     # Defensive check to prevent IndexError
     recommendations = decision_analysis.get("operational_recommendations", [])
     if recommendations:
         decision = recommendations[0]
     else:
         decision = "No specific action recommended; maintaining normal operations."
-        
+
     prompt = f"""
     You are an expert safety evaluator.
     Current Situation: "{summary}"

@@ -26,11 +26,7 @@
     "react-dom": "19.1.0",
     "react-leaflet": "^5.0.0",
     "react-redux": "^9.2.0",
-<<<<<<< HEAD:frontend/package.json
-    "tailwind-merge": "^3.3.1"
-=======
     "recharts": "^3.2.1"
->>>>>>> a265757afb3f4d75618db07b689218856e685933:weather_smart_lighting/frontend/package.json
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
