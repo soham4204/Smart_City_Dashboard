@@ -146,8 +146,9 @@ async def simulate_weather(request: SimulationRequest):
                     pole.brightness = new_brightness
 
     # ✅ Build enriched payload for WebSocket broadcast
+    # FIXED: Send the zones list directly, not the whole state object
     payload = {
-        "zones": MOCK_DASHBOARD_STATE.model_dump(),
+        "zones": [zone.model_dump() for zone in MOCK_DASHBOARD_STATE.zones],
         "agentResult": result,
     }
 
@@ -164,27 +165,38 @@ async def simulate_weather(request: SimulationRequest):
 async def set_manual_override(pole_id: str, request: OverrideRequest):
     # ADDED: Logging for manual overrides
     log_event(f"Manual Override | Pole: {pole_id} set to {request.brightness}%")
-
+    pole_found = False
     for zone in MOCK_DASHBOARD_STATE.zones:
         for pole in zone.poles:
             if pole.id == pole_id:
                 pole.manual_override = request.manual_override
                 pole.brightness = request.brightness
-                
-                # UPDATED: .dict() is deprecated, use .model_dump()
-                updated_state_dict = MOCK_DASHBOARD_STATE.model_dump()
-                await manager.broadcast(json.dumps({"zones": updated_state_dict}))
-                return {"success": True, "pole_id": pole_id}
+                pole_found = True
+                break
+        if pole_found:
+            break
+    
+    if pole_found:
+        # FIXED: Send a consistent payload structure
+        payload = {
+            "zones": [zone.model_dump() for zone in MOCK_DASHBOARD_STATE.zones]
+        }
+        await manager.broadcast(json.dumps(payload))
+        return {"success": True, "pole_id": pole_id}
     
     return {"success": False, "message": "Pole not found"}
 
 @app.websocket("/ws/updates")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
+    # Send initial state on connect
+    initial_payload = { "zones": [zone.model_dump() for zone in MOCK_DASHBOARD_STATE.zones] }
+    await websocket.send_text(json.dumps(initial_payload))
     try:
         while True:
-            # Keep the connection alive
+            # Keep the connection alive by listening for messages (even if none are expected from client)
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         print("Client disconnected")
+
