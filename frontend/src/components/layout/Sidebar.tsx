@@ -87,8 +87,13 @@ export default function Sidebar() {
     router.push('/');
   };
 
+  const handleBlackoutClick = () => {
+    router.push('/blackout');
+  };
+
   const isCyberPage = pathname === '/cybersecurity';
   const isDashboardPage = pathname === '/';
+  const isBlackoutPage = pathname === '/blackout';
 
   return (
     <div className="w-80 min-h-screen max-h-screen bg-gradient-to-b from-slate-900 via-gray-900 to-slate-900 text-white flex flex-col flex-shrink-0 border-r border-gray-700/50 shadow-2xl">
@@ -180,6 +185,37 @@ export default function Sidebar() {
                   </p>
                   {isCyberPage && (
                     <span className="text-xs text-red-400 font-medium">✓ ACTIVE</span>
+                  )}
+                </div>
+              </div>
+            </button>
+
+            {/* Blackout Management Navigation */}
+            <button
+              onClick={handleBlackoutClick}
+              className={`
+                w-full text-left p-4 rounded-xl transition-all duration-300
+                border backdrop-blur-sm relative overflow-hidden group
+                ${isBlackoutPage 
+                  ? 'bg-gradient-to-r from-yellow-600/30 to-orange-600/30 border-yellow-500/50 ring-2 ring-yellow-500/30' 
+                  : 'border-yellow-500/30 bg-gradient-to-r from-yellow-900/20 to-orange-800/10 hover:from-yellow-800/30 hover:to-orange-700/20'
+                }
+                hover:transform hover:scale-[1.02] hover:shadow-lg
+              `}
+            >
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-lg flex items-center justify-center">
+                  <span className="text-sm">⚡</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white group-hover:text-yellow-200 transition-colors">
+                    Blackout Management
+                  </h3>
+                  <p className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">
+                    Power grid & emergency allocation
+                  </p>
+                  {isBlackoutPage && (
+                    <span className="text-xs text-yellow-400 font-medium">✓ ACTIVE</span>
                   )}
                 </div>
               </div>
@@ -278,6 +314,32 @@ export default function Sidebar() {
                   <div className="p-3 bg-gray-800/50 rounded-lg text-center">
                     <p className="text-cyan-400 font-bold text-lg">0</p>
                     <p className="text-gray-400 text-xs">Active Threats</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Blackout Info - Only show on blackout page */}
+            {isBlackoutPage && (
+              <div className="space-y-4 pt-4 border-t border-gray-700/30">
+                <div className="p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-xl">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                    <span className="text-yellow-400 font-semibold text-sm">POWER GRID MONITORING</span>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    AI-driven blackout management protecting 2.43M citizens. Use the simulator to test power allocation.
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 bg-gray-800/50 rounded-lg text-center">
+                    <p className="text-green-400 font-bold text-lg">8</p>
+                    <p className="text-gray-400 text-xs">Power Zones</p>
+                  </div>
+                  <div className="p-3 bg-gray-800/50 rounded-lg text-center">
+                    <p className="text-cyan-400 font-bold text-lg">610</p>
+                    <p className="text-gray-400 text-xs">MW Capacity</p>
                   </div>
                 </div>
               </div>

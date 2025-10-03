@@ -1,14 +1,19 @@
 # backend/tools/decision_engine_tools.py
+import os
 import uuid
 import json
 import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
 from . import state_keys
+
+# Load environment variables before using them
+load_dotenv()
 
 # --- RAG Imports ---
 from langchain_pinecone import PineconeVectorStore
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # Configure logging for decision engine operations
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -34,9 +39,13 @@ class DecisionThresholds:
 
 # --- Retriever Initialization ---
 try:
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    pinecone_index_name = os.getenv("PINECONE_INDEX_NAME", "smart-city-incidents")
+    
+    # Use HuggingFace embeddings (same as seed_database.py)
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    
     vectorstore = PineconeVectorStore.from_existing_index(
-        index_name="smart-city-incidents",
+        index_name=pinecone_index_name,
         embedding=embeddings
     )
     retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
