@@ -262,3 +262,4 @@ export default function IncidentPanel({ incident, soarAnalysis, zones, onManualA
 
 
 
+
