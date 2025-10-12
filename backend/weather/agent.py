@@ -1,4 +1,4 @@
-# backend/agent.py
+# backend/weather/agent.py
 import os
 import json
 from typing import TypedDict, Dict, Any
@@ -11,52 +11,77 @@ from tools import collector_tools, preprocessor_tools, sensor_fusion_tools, anom
 
 load_dotenv()
 
-# --- 1. Define the Comprehensive State ---
+# --- 1. Define the Comprehensive State (no changes here) ---
 class AgentState(TypedDict):
-    # Inputs
+    # ... (rest of the state definition is unchanged)
     scenario: str
     location: str
     zone_id: str
     config: dict
-
-    # Tool outputs that need to be passed between steps
     weather_data: dict
     cctv_data: dict
     iot_data: dict
-
-    # Preprocessing outputs
     pipeline_report: dict
     normalized_data: dict
     filtered_data: dict
     validation_report: dict
     quality_report: dict
-
-    # Sensor Fusion outputs
     sensor_fusion_report: dict
     fused_environmental_state: dict
     situational_awareness: dict
-
-    # Anomaly Detection output
     anomaly_assessment: dict
-
-    # Decision Engine output
     decision_analysis: dict
-
-    # Final actions
     control_action: dict
     final_verdict: str
 
 
-# --- 2. Initialize Models ---
+# --- 2. Initialize Models (no changes here) ---
 llm = ChatGroq(model_name="llama-3.1-8b-instant", temperature=0)
 judge_llm = ChatGroq(model_name="llama-3.1-8b-instant", temperature=0.1)
 
 
 # --- 3. Define the Nodes for the Enhanced Pipeline ---
 
+# NEW: Helper function to generate mock weather for simulations
+def get_mock_weather_for_scenario(scenario: str) -> dict:
+    """Creates mock weather data based on the simulation scenario."""
+    base_data = {
+        "current": {
+            "condition": {"text": "Clear"}, "temp_c": 29, "wind_kph": 10, "humidity": 60, "air_quality": {"us-epa-index": 1}
+        }
+    }
+    if "rain" in scenario:
+        base_data["current"]["condition"]["text"] = "Heavy Rain"
+        base_data["current"]["temp_c"] = 24
+        base_data["current"]["wind_kph"] = 25
+        base_data["current"]["humidity"] = 90
+    elif "fog" in scenario:
+        base_data["current"]["condition"]["text"] = "Dense Fog"
+        base_data["current"]["temp_c"] = 22
+        base_data["current"]["wind_kph"] = 5
+        base_data["current"]["humidity"] = 95
+    elif "cyclone" in scenario:
+        base_data["current"]["condition"]["text"] = "Cyclone Alert"
+        base_data["current"]["temp_c"] = 26
+        base_data["current"]["wind_kph"] = 60
+        base_data["current"]["humidity"] = 88
+    elif "clear" in scenario:
+        base_data["current"]["condition"]["text"] = "Clear Sky"
+    
+    return base_data
+
+# UPDATED: The data collection node now uses the mock weather
 def data_collection_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Data Collection---")
-    collector_tools.get_live_weather(state['location'], state)
+    scenario = state.get("scenario")
+    
+    # Use mock weather for simulations, otherwise fetch real data
+    if scenario:
+        print(f"--- Using Mock Weather for Scenario: {scenario} ---")
+        state["weather_data"] = get_mock_weather_for_scenario(scenario)
+    else:
+        collector_tools.get_live_weather(state['location'], state)
+
     collector_tools.get_enhanced_synthetic_cctv_data(state['zone_id'], state)
     collector_tools.get_enhanced_synthetic_iot_sensor_data(state['zone_id'], state)
 
@@ -66,10 +91,10 @@ def data_collection_node(state: AgentState) -> Dict[str, Any]:
         "iot_data": state.get("iot_data", {})
     }
 
+# (The rest of the agent nodes remain unchanged)
 def data_processing_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Data Preprocessing---")
     report = preprocessor_tools.process_complete_data_pipeline(state)
-    # Return all keys that the tool adds to the state
     return {
         "pipeline_report": report,
         "normalized_data": state.get("normalized_data", {}),
@@ -81,7 +106,6 @@ def data_processing_node(state: AgentState) -> Dict[str, Any]:
 def sensor_fusion_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Sensor Fusion---")
     report = sensor_fusion_tools.process_complete_sensor_fusion(state)
-    # Return all keys that the tool adds to the state
     return {
         "sensor_fusion_report": report,
         "fused_environmental_state": state.get("fused_environmental_state", {}),
@@ -102,8 +126,7 @@ def control_executor_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Control Executor---")
     decision_analysis = state.get("decision_analysis", {})
     recommendations = decision_analysis.get("operational_recommendations", [])
-
-    brightness = 85 # Default
+    brightness = 85
     for rec in recommendations:
         if "brightness" in rec.lower():
             try:
@@ -114,21 +137,17 @@ def control_executor_node(state: AgentState) -> Dict[str, Any]:
                     break
             except (ValueError, IndexError):
                 continue
-
     return {"control_action": {"brightness": brightness}}
 
 def system_monitor_node(state: AgentState) -> Dict[str, str]:
     print("---NODE: System Monitor (LLM Judge)---")
     summary = state.get("anomaly_assessment", {}).get("summary", "No summary.")
     decision_analysis = state.get("decision_analysis", {})
-
-    # Defensive check to prevent IndexError
     recommendations = decision_analysis.get("operational_recommendations", [])
     if recommendations:
         decision = recommendations[0]
     else:
         decision = "No specific action recommended; maintaining normal operations."
-
     prompt = f"""
     You are an expert safety evaluator.
     Current Situation: "{summary}"
@@ -140,7 +159,8 @@ def system_monitor_node(state: AgentState) -> Dict[str, str]:
     print(f"---JUDGE'S VERDICT: {verdict}")
     return {"final_verdict": verdict}
 
-# --- 4. Assemble and Compile the Graph ---
+
+# --- 4. Assemble and Compile the Graph (no changes here) ---
 workflow = StateGraph(AgentState)
 
 workflow.add_node("data_collection", data_collection_node)
