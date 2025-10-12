@@ -77,3 +77,4 @@ class BlackoutSimulationRequest(BaseModel):
     weather_condition: Optional[str] = None
 
 
+
