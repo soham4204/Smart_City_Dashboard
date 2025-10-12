@@ -76,3 +76,4 @@ class BlackoutSimulationRequest(BaseModel):
     capacity_lost_percent: float
     weather_condition: Optional[str] = None
 
+
