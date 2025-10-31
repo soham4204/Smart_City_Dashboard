@@ -33,16 +33,24 @@ export default function BlackoutHeader({ dashboardData, connectionStatus }: Blac
     return 'bg-red-500';
   };
 
+  // 🌟 Determine background tint
+  let headerBg = 'bg-gray-800';
+  if (hasActiveIncidents) headerBg = 'bg-red-900/30';
+  else if (grid_health_score < 80 && grid_health_score >= 40) headerBg = 'bg-yellow-900/20';
+
   return (
-    <div className={`${hasActiveIncidents ? 'bg-red-900/30' : 'bg-gray-800'} border-b border-gray-700 p-4 transition-colors`}>
+    <div className={`${headerBg} border-b border-gray-700 p-4 transition-colors`}>
       <div className="max-w-full mx-auto">
+        {/* Header Title & Connection */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${hasActiveIncidents ? 'bg-red-500/20' : 'bg-yellow-500/20'}`}>
+            <div className={`p-2 rounded-lg ${hasActiveIncidents ? 'bg-red-500/20' : grid_health_score < 80 ? 'bg-yellow-500/20' : 'bg-green-500/20'}`}>
               {hasActiveIncidents ? (
                 <ZapOff className="w-8 h-8 text-red-400" />
-              ) : (
+              ) : grid_health_score < 80 ? (
                 <Zap className="w-8 h-8 text-yellow-400" />
+              ) : (
+                <Zap className="w-8 h-8 text-green-400" />
               )}
             </div>
             <div>
@@ -52,9 +60,9 @@ export default function BlackoutHeader({ dashboardData, connectionStatus }: Blac
               </p>
             </div>
           </div>
-          
+
+          {/* Connection Status */}
           <div className="flex items-center gap-4">
-            {/* Connection Status */}
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
               <span className="text-sm text-gray-400">
@@ -113,16 +121,20 @@ export default function BlackoutHeader({ dashboardData, connectionStatus }: Blac
           </div>
 
           {/* Active Incidents */}
-          <div className={`rounded-lg p-4 ${hasActiveIncidents ? 'bg-red-500/20 border border-red-500/50' : 'bg-gray-700/50'}`}>
+          <div className={`rounded-lg p-4 ${hasActiveIncidents ? 'bg-red-500/20 border border-red-500/50' : grid_health_score < 80 ? 'bg-yellow-500/10 border border-yellow-500/30' : 'bg-gray-700/50'}`}>
             <div className="flex items-center gap-2 mb-1">
-              <AlertTriangle className={`w-4 h-4 ${hasActiveIncidents ? 'text-red-400 animate-pulse' : 'text-gray-400'}`} />
+              <AlertTriangle className={`w-4 h-4 ${hasActiveIncidents ? 'text-red-400 animate-pulse' : grid_health_score < 80 ? 'text-yellow-400' : 'text-gray-400'}`} />
               <span className="text-gray-400 text-sm">Active Incidents</span>
             </div>
-            <p className={`text-2xl font-bold ${hasActiveIncidents ? 'text-red-400' : 'text-green-400'}`}>
+            <p className={`text-2xl font-bold ${hasActiveIncidents ? 'text-red-400' : grid_health_score < 80 ? 'text-yellow-400' : 'text-green-400'}`}>
               {active_incidents.length}
             </p>
             <p className="text-xs text-gray-400">
-              {hasActiveIncidents ? 'Emergency Response Active' : 'All Systems Normal'}
+              {hasActiveIncidents
+                ? 'Emergency Response Active'
+                : grid_health_score < 80
+                ? 'Grid Under Stress'
+                : 'All Systems Normal'}
             </p>
           </div>
         </div>
@@ -130,7 +142,3 @@ export default function BlackoutHeader({ dashboardData, connectionStatus }: Blac
     </div>
   );
 }
-
-
-
-

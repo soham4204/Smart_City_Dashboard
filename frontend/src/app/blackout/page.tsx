@@ -1,11 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import Sidebar from '@/components/layout/Sidebar'; // Import the main Sidebar
 import BlackoutHeader from '@/components/blackout/BlackoutHeader';
-import BlackoutMap from '@/components/blackout/BlackoutMap';
 import BlackoutSimulator from '@/components/blackout/BlackoutSimulator';
 import ZonePowerPanel from '@/components/blackout/ZonePowerPanel';
 import IncidentPanel from '@/components/blackout/IncidentPanel';
+import LiveClockAndWeather from '@/components/analytics/LiveClockAndWeather'; // <-- IMPORTED CLOCK
+
+// Dynamically import map
+const BlackoutMap = dynamic(() => import('@/components/blackout/BlackoutMap'), { 
+  ssr: false 
+});
 
 interface PowerZone {
   id: string;
@@ -82,10 +89,8 @@ export default function BlackoutPage() {
       console.log('[Blackout WS] Message:', message);
 
       if (message.type === 'blackout_alert') {
-        // Refresh data on new blackout
         fetchBlackoutData();
       } else if (message.type === 'blackout_update') {
-        // Update zones and incident data
         if (message.data.zones) {
           setDashboardData((prev) => prev ? { ...prev, zones: message.data.zones } : null);
         }
@@ -96,7 +101,6 @@ export default function BlackoutPage() {
           setSoarAnalysis(message.data.soar_analysis);
         }
       } else if (message.type === 'recovery_progress') {
-        // Update zones with recovery progress
         if (message.data.zones) {
           setDashboardData((prev) => {
             if (!prev) return null;
@@ -108,12 +112,10 @@ export default function BlackoutPage() {
           });
         }
       } else if (message.type === 'blackout_resolved') {
-        // Refresh all data
         fetchBlackoutData();
         setSelectedIncident(null);
         setSoarAnalysis(null);
       } else if (message.type === 'manual_allocation') {
-        // Update zones after manual allocation
         if (message.data.zones) {
           setDashboardData((prev) => {
             if (!prev) return null;
@@ -150,9 +152,10 @@ export default function BlackoutPage() {
       const data = await response.json();
       setDashboardData(data);
       
-      // Auto-select first incident if exists
       if (data.active_incidents && data.active_incidents.length > 0) {
         setSelectedIncident(data.active_incidents[0]);
+      } else {
+        setSelectedIncident(null); // Clear incident if none are active
       }
     } catch (error) {
       console.error('Failed to fetch blackout data:', error);
@@ -202,6 +205,33 @@ export default function BlackoutPage() {
     }
   };
 
+  // --- NEW: Define the controls to be passed to the sidebar ---
+  const blackoutControls = (
+    <div className="space-y-4">
+      <BlackoutSimulator 
+        zones={dashboardData?.zones || []}
+        onSimulationComplete={handleSimulationComplete}
+      />
+      
+      {selectedIncident && (
+        <IncidentPanel 
+          incident={selectedIncident}
+          soarAnalysis={soarAnalysis}
+          zones={dashboardData?.zones || []}
+          onManualAllocation={handleManualAllocation}
+          onResolve={handleResolveIncident}
+        />
+      )}
+
+      {selectedZone && !selectedIncident && (
+        <ZonePowerPanel 
+          zone={selectedZone}
+          onRefresh={fetchBlackoutData}
+        />
+      )}
+    </div>
+  );
+
   if (!dashboardData) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -214,44 +244,28 @@ export default function BlackoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <BlackoutHeader 
-        dashboardData={dashboardData}
-        connectionStatus={connectionStatus}
-      />
+    // --- NEW: Unified Page Layout ---
+    <div className="flex h-screen bg-gray-900 text-white">
+      {/* 1. Add the main Sidebar, passing in the controls */}
+      <Sidebar blackoutControls={blackoutControls} />
 
-      <div className="flex">
-        {/* Left Sidebar */}
-        <div className="w-96 bg-gray-800 border-r border-gray-700 h-[calc(100vh-64px)] overflow-y-auto">
-          {/* Blackout Simulator */}
-          <BlackoutSimulator 
-            zones={dashboardData.zones}
-            onSimulationComplete={handleSimulationComplete}
-          />
+      {/* 2. This is the main content area */}
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-700/50">
+          {/* --- MODIFICATION: ADDED CLOCK & DIVIDER --- */}
+          <LiveClockAndWeather />
+          <div className="my-6 border-t border-gray-700"></div>
+          {/* --- END OF MODIFICATION --- */}
           
-          {/* Active Incident Details */}
-          {selectedIncident && (
-            <IncidentPanel 
-              incident={selectedIncident}
-              soarAnalysis={soarAnalysis}
-              zones={dashboardData.zones}
-              onManualAllocation={handleManualAllocation}
-              onResolve={handleResolveIncident}
-            />
-          )}
-
-          {/* Selected Zone Details */}
-          {selectedZone && !selectedIncident && (
-            <ZonePowerPanel 
-              zone={selectedZone}
-              onRefresh={fetchBlackoutData}
-            />
-          )}
+          <BlackoutHeader 
+            dashboardData={dashboardData}
+            connectionStatus={connectionStatus}
+          />
         </div>
-
+        
         {/* Main Content - Map */}
-        <div className="flex-1 h-[calc(100vh-64px)]">
+        <div className="flex-1 h-[calc(100vh-100px)]">
           <BlackoutMap 
             zones={dashboardData.zones}
             selectedZone={selectedZone}
@@ -263,7 +277,4 @@ export default function BlackoutPage() {
     </div>
   );
 }
-
-
-
 

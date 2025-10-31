@@ -16,7 +16,7 @@ export default function AgentStatusPanel() {
     );
   }
 
-  const { anomalies, decision, final_verdict } = latestAgentRun;
+  const { anomaly_assessment, decision_analysis, final_verdict } = latestAgentRun;
   const isApproved = final_verdict?.startsWith('APPROVE');
 
   return (
@@ -26,13 +26,13 @@ export default function AgentStatusPanel() {
         <div>
           <h5 className="font-semibold text-gray-300">Anomalies Detected</h5>
           <p className="text-sm text-orange-400 bg-gray-800 p-2 rounded">
-            {anomalies?.anomalies.join(', ') || 'None'}
+            {anomaly_assessment?.anomalies_detected.join(', ') || 'None'}
           </p>
         </div>
         <div>
           <h5 className="font-semibold text-gray-300">Agent Decision</h5>
           <p className="text-sm text-blue-300 bg-gray-800 p-2 rounded">
-            {decision?.decision || 'N/A'}
+            {decision_analysis?.operational_recommendations?.[0] || 'N/A'}
           </p>
         </div>
         <div>

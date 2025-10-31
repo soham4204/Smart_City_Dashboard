@@ -1,11 +1,17 @@
-// app/cybersecurity/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
-import CyberMap from '@/components/cyber/CyberMap';
+import dynamic from 'next/dynamic';
+import Sidebar from '@/components/layout/Sidebar'; // Import the main Sidebar
 import CyberHeader from '@/components/cyber/CyberHeader';
 import AttackSimulator from '@/components/cyber/AttackSimulator';
 import ZoneStatusPanel from '@/components/cyber/ZoneStatusPanel';
+import LiveClockAndWeather from '@/components/analytics/LiveClockAndWeather';
+
+// Dynamically import map
+const CyberMap = dynamic(() => import('@/components/cyber/CyberMap'), { 
+  ssr: false 
+});
 
 interface CyberZone {
   id: string;
@@ -38,12 +44,13 @@ export default function CybersecurityPage() {
   }, []);
 
   const fetchCyberData = async () => {
+    setLoading(true);
     try {
       const response = await fetch('http://localhost:8001/api/v1/cyber/initial-state');
       if (response.ok) {
         const data = await response.json();
         setDashboardData(data);
-        if (data.zones.length > 0) {
+        if (data.zones.length > 0 && !selectedZone) {
           setSelectedZone(data.zones[0]); // Select first zone by default
         }
         setConnectionStatus('connected');
@@ -54,40 +61,17 @@ export default function CybersecurityPage() {
     } catch (error) {
       console.error('Error fetching cyber data:', error);
       setConnectionStatus('disconnected');
-      // Use mock data as fallback
-      setDashboardData({
-        zones: [
-          {
-            id: 'airport_zone',
-            name: 'CSM International Airport',
-            zone_type: 'airport_zone',
-            security_state: 'GREEN',
-            critical_assets: ['runway_lighting_system', 'air_traffic_control'],
-            active_incidents: 0,
-            threat_level: 'LOW',
-            compliance_status: 'COMPLIANT'
-          },
-          {
-            id: 'hospital_zone',
-            name: 'KEM Hospital',
-            zone_type: 'hospital_zone',
-            security_state: 'GREEN',
-            critical_assets: ['patient_records', 'life_support_systems'],
-            active_incidents: 0,
-            threat_level: 'LOW',
-            compliance_status: 'COMPLIANT'
-          }
-        ],
-        active_incidents: [],
-        recent_events: [],
-        global_threat_level: 'LOW'
-      });
     } finally {
       setLoading(false);
     }
   };
 
   const setupWebSocket = () => {
+    // Ensure WebSocket is only created on the client side
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     const ws = new WebSocket('ws://localhost:8001/ws/updates');
     
     ws.onopen = () => {
@@ -128,55 +112,90 @@ export default function CybersecurityPage() {
       console.error('❌ Cyber WebSocket error:', error);
       setConnectionStatus('disconnected');
     };
+
+    // Clean up WebSocket connection when component unmounts
+    return () => {
+      ws.close();
+    };
   };
 
   const handleZoneSelect = (zone: CyberZone) => {
     setSelectedZone(zone);
   };
 
-  if (loading) {
+  // --- Define the controls to be passed to the sidebar ---
+  const cyberControls = (
+    <div className="space-y-4">
+      <AttackSimulator zones={dashboardData?.zones || []} />
+    </div>
+  );
+
+  if (loading && !dashboardData) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mx-auto mb-4"></div>
-          <p className="text-gray-400">Initializing Cyber Defense Systems...</p>
+      <div className="flex h-screen bg-gray-900 text-white">
+        {/* Render sidebar even during loading for consistent layout */}
+        <Sidebar cyberControls={cyberControls} />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mx-auto mb-4"></div>
+            <p className="text-gray-400">Initializing Cyber Defense Systems...</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <CyberHeader 
-        dashboardData={dashboardData}
-        connectionStatus={connectionStatus}
-      />
+    <div className="flex h-screen bg-gray-900 text-white">
+      {/* 1. Add the main Sidebar, passing in the controls */}
+      <Sidebar cyberControls={cyberControls} />
 
-      <div className="flex">
-        {/* Sidebar */}
-        <div className="w-80 bg-gray-800 border-r border-gray-700 h-screen overflow-y-auto">
-          {/* Attack Simulator */}
-          <AttackSimulator zones={dashboardData?.zones || []} />
+      {/* 2. This is the main content area */}
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-700/50">
+          <LiveClockAndWeather />
+          <div className="my-6 border-t border-gray-700"></div>
           
-          {/* Zone Status */}
-          {selectedZone && (
-            <ZoneStatusPanel 
-              zone={selectedZone}
-              onRefresh={() => fetchCyberData()}
-            />
-          )}
-        </div>
-
-        {/* Main Content - Map */}
-        <div className="flex-1 h-screen">
-          <CyberMap 
-            zones={dashboardData?.zones || []}
-            selectedZone={selectedZone}
-            onZoneSelect={handleZoneSelect}
+          <CyberHeader 
+            dashboardData={dashboardData}
+            connectionStatus={connectionStatus}
           />
         </div>
+        
+        {/* --- Main Content 2-Column Layout --- */}
+        <div className="flex-1 flex p-6 gap-6 overflow-hidden">
+          
+          {/* Column 1: Map (Takes up remaining space) */}
+          <div className="flex-1 h-full rounded-lg overflow-hidden">
+            <CyberMap 
+              zones={dashboardData?.zones || []}
+              selectedZone={selectedZone}
+              onZoneSelect={handleZoneSelect}
+            />
+          </div>
+
+          {/* Column 2: Zone Details (Fixed width, scrolls internally) */}
+          <div className="w-96 h-full flex flex-col gap-6 overflow-y-auto">
+            {selectedZone && (
+              <ZoneStatusPanel 
+                zone={selectedZone}
+                onRefresh={fetchCyberData}
+              />
+            )}
+            {/* Fallback if no zone is selected */}
+            {!selectedZone && dashboardData && dashboardData.zones.length > 0 && (
+              <ZoneStatusPanel 
+              zone={dashboardData.zones[0]}
+              onRefresh={fetchCyberData}
+            />
+            )}
+          </div>
+        </div>
+        {/* --- END OF LAYOUT --- */}
+
       </div>
     </div>
   );
 }
+

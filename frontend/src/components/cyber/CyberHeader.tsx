@@ -1,96 +1,160 @@
-// components/cyber/CyberHeader.tsx
-import React from 'react';
-import { Shield, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
+'use client';
+
+import { Shield, Activity, ShieldAlert, Globe, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface CyberZone {
+  id: string;
+  name: string;
+  security_state: 'GREEN' | 'YELLOW' | 'RED';
+}
+
+interface CyberDashboardData {
+  zones: CyberZone[];
+  active_incidents: any[];
+  recent_events: any[];
+  global_threat_level: string;
+}
 
 interface CyberHeaderProps {
-  dashboardData: any;
+  dashboardData: CyberDashboardData | null;
   connectionStatus: 'connecting' | 'connected' | 'disconnected';
 }
 
+// --- StatCard Sub-component ---
+const StatCard = ({
+  title,
+  value,
+  icon,
+  colorClass,
+  valueColorClass,
+  subtext,
+}: {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  colorClass: string;
+  valueColorClass?: string;
+  subtext?: string;
+}) => (
+  <div
+    className={cn(
+      "bg-gray-700/50 rounded-lg p-4 transition-colors border border-gray-700/50 hover:bg-gray-700/70"
+    )}
+  >
+    <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center gap-2">
+        <div className={cn("p-2 rounded-md", colorClass)}>{icon}</div>
+        <span className="text-gray-400 text-sm">{title}</span>
+      </div>
+    </div>
+    <p className={cn("text-2xl font-bold", valueColorClass || "text-white")}>{value}</p>
+    {subtext && <p className="text-xs text-gray-400">{subtext}</p>}
+  </div>
+);
+
+// --- Connection Status ---
+const ConnectionStatus = ({ status }: { status: 'connecting' | 'connected' | 'disconnected' }) => {
+  const statusConfig = {
+    connected: { text: 'Live', color: 'bg-green-400 animate-pulse', textColor: 'text-green-400', icon: <Wifi className="w-4 h-4" /> },
+    connecting: { text: 'Connecting...', color: 'bg-yellow-400 animate-pulse', textColor: 'text-yellow-400', icon: <Wifi className="w-4 h-4 animate-pulse" /> },
+    disconnected: { text: 'Disconnected', color: 'bg-red-400', textColor: 'text-red-400', icon: <WifiOff className="w-4 h-4" /> },
+  };
+  const cfg = statusConfig[status];
+  return (
+    <div className="flex items-center gap-2">
+      <div className={`w-2 h-2 rounded-full ${cfg.color}`} />
+      <span className={`text-sm ${cfg.textColor}`}>{cfg.text}</span>
+      {cfg.icon}
+    </div>
+  );
+};
+
+// --- Main Header Component ---
 export default function CyberHeader({ dashboardData, connectionStatus }: CyberHeaderProps) {
-  const getSecureZoneCount = () => {
-    return dashboardData?.zones?.filter((z: any) => z.security_state === 'GREEN').length || 0;
-  };
+  const zonesCount = dashboardData?.zones?.length || 0;
+  const incidentsCount = dashboardData?.active_incidents?.length || 0;
+  const zonesAtRisk = dashboardData?.zones?.filter(z => z.security_state !== 'GREEN').length || 0;
+  const threatLevel = dashboardData?.global_threat_level || (zonesAtRisk > 0 ? 'HIGH' : 'LOW');
 
-  const getTotalZones = () => {
-    return dashboardData?.zones?.length || 0;
-  };
+  const threatConfig = {
+    LOW: { color: 'text-green-400', bg: 'bg-green-500/20', bar: 'bg-green-500' },
+    MEDIUM: { color: 'text-yellow-400', bg: 'bg-yellow-500/20', bar: 'bg-yellow-500' },
+    HIGH: { color: 'text-orange-400', bg: 'bg-orange-500/20', bar: 'bg-orange-500' },
+    CRITICAL: { color: 'text-red-400', bg: 'bg-red-500/20', bar: 'bg-red-500' },
+  }[threatLevel] || { color: 'text-gray-400', bg: 'bg-gray-500/20', bar: 'bg-gray-500' };
 
-  const getActiveThreats = () => {
-    return dashboardData?.zones?.filter((z: any) => z.security_state === 'RED').length || 0;
-  };
+  const hasActiveIncidents = incidentsCount > 0;
 
   return (
-    <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
-      <div className="flex items-center justify-between">
-        {/* Title */}
-        <div className="flex items-center space-x-3">
-          <div className="bg-purple-600 p-2 rounded-lg">
-            <Shield className="h-6 w-6 text-white" />
+    <div
+      className={cn(
+        "border-b border-gray-700 p-4 transition-colors",
+        hasActiveIncidents ? "bg-red-900/30" : "bg-gray-800"
+      )}
+    >
+      <div className="max-w-full mx-auto">
+        {/* Top Header Section */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${hasActiveIncidents ? 'bg-red-500/20' : threatConfig.bg}`}>
+              {hasActiveIncidents ? (
+                <ShieldAlert className="w-8 h-8 text-red-400 animate-pulse" />
+              ) : (
+                <Shield className={`w-8 h-8 ${threatConfig.color}`} />
+              )}
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Cyber Defense Command Center</h1>
+              <p className="text-gray-400 text-sm">Real-time Security Operations & Incident Response</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-white">Cyber Defense Command</h1>
-            <p className="text-gray-400 text-sm">Mumbai Smart City Security Operations</p>
-          </div>
+          <ConnectionStatus status={connectionStatus} />
         </div>
 
-        {/* Status Cards */}
-        <div className="flex space-x-4">
-          {/* Secure Zones */}
-          <div className="bg-green-600/20 border border-green-500/30 rounded-lg px-4 py-2">
-            <div className="flex items-center space-x-2">
-              <CheckCircle className="h-5 w-5 text-green-400" />
-              <div>
-                <p className="text-green-400 font-semibold">{getSecureZoneCount()}/{getTotalZones()}</p>
-                <p className="text-gray-400 text-xs">Secure Zones</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Active Threats */}
-          <div className="bg-red-600/20 border border-red-500/30 rounded-lg px-4 py-2">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-red-400" />
-              <div>
-                <p className="text-red-400 font-semibold">{getActiveThreats()}</p>
-                <p className="text-gray-400 text-xs">Active Threats</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Threat Level */}
-          <div className="bg-cyan-600/20 border border-cyan-500/30 rounded-lg px-4 py-2">
-            <div className="flex items-center space-x-2">
-              <Shield className="h-5 w-5 text-cyan-400" />
-              <div>
-                <p className="text-cyan-400 font-semibold">{dashboardData?.global_threat_level || 'LOW'}</p>
-                <p className="text-gray-400 text-xs">Threat Level</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Connection Status */}
-          <div className={`rounded-lg px-4 py-2 border ${
-            connectionStatus === 'connected' 
-              ? 'bg-green-600/20 border-green-500/30' 
-              : 'bg-red-600/20 border-red-500/30'
-          }`}>
-            <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-gray-400" />
-              <div>
-                <p className={`font-semibold ${
-                  connectionStatus === 'connected' ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {connectionStatus === 'connected' ? 'ONLINE' : 'OFFLINE'}
-                </p>
-                <p className="text-gray-400 text-xs">
-                  {new Date().toLocaleTimeString()}
-                </p>
-              </div>
-            </div>
-          </div>
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <StatCard
+            title="Protected Zones"
+            value={zonesCount}
+            icon={<Shield className="w-5 h-5 text-blue-400" />}
+            colorClass="bg-blue-500/20"
+            subtext="Active security regions"
+          />
+          <StatCard
+            title="Active Incidents"
+            value={incidentsCount}
+            icon={<Activity className="w-5 h-5 text-orange-400" />}
+            colorClass="bg-orange-500/20"
+            valueColorClass={incidentsCount > 0 ? 'text-red-400' : 'text-green-400'}
+            subtext={hasActiveIncidents ? 'Incidents under investigation' : 'All systems stable'}
+          />
+          <StatCard
+            title="Zones at Risk"
+            value={zonesAtRisk}
+            icon={<ShieldAlert className="w-5 h-5 text-red-400" />}
+            colorClass="bg-red-500/20"
+            valueColorClass={zonesAtRisk > 0 ? 'text-red-400' : 'text-green-400'}
+            subtext={zonesAtRisk > 0 ? 'Requires immediate attention' : 'Secure'}
+          />
+          <StatCard
+            title="Global Threat Level"
+            value={threatLevel}
+            icon={<Globe className={`w-5 h-5 ${threatConfig.color}`} />}
+            colorClass={threatConfig.bg}
+            valueColorClass={threatConfig.color}
+            subtext="Dynamic global status"
+          />
+          <StatCard
+            title="Recent Alerts"
+            value={dashboardData?.recent_events?.length || 0}
+            icon={<AlertTriangle className="w-5 h-5 text-yellow-400" />}
+            colorClass="bg-yellow-500/20"
+            valueColorClass="text-yellow-400"
+            subtext="Last 24 hours"
+          />
         </div>
       </div>
-    </header>
+    </div>
   );
 }

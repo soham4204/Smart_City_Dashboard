@@ -1,6 +1,16 @@
 'use client';
-import { useState } from 'react';
+
+import { useState, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils';
+import { LayoutDashboard, ShieldCheck, PowerOff, Building } from 'lucide-react';
+
+// --- MODIFICATION: Added cyberControls prop ---
+interface SidebarProps {
+  cyberControls?: ReactNode;
+  blackoutControls?: ReactNode;
+}
+// --- END OF MODIFICATION ---
 
 const weatherScenarios = [
   { 
@@ -40,7 +50,8 @@ const severityStyles = {
   low: 'border-green-500/30 bg-gradient-to-r from-green-900/20 to-green-800/10 hover:from-green-800/30 hover:to-green-700/20'
 };
 
-export default function Sidebar() {
+// --- MODIFICATION: Added cyberControls to arguments ---
+export default function Sidebar({ cyberControls, blackoutControls }: SidebarProps) {
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [lastSimulation, setLastSimulation] = useState<string | null>(null);
   const router = useRouter();
@@ -63,7 +74,6 @@ export default function Sidebar() {
       setTimeout(() => setLastSimulation(null), 3000);
     } catch (error) {
       console.error('Failed to run simulation:', error);
-      // Better error handling with toast-like notification
       const errorDiv = document.createElement('div');
       errorDiv.className = 'fixed top-4 right-4 bg-red-900/90 border border-red-500/50 text-white px-4 py-3 rounded-lg shadow-lg z-50';
       errorDiv.innerHTML = `
@@ -79,20 +89,26 @@ export default function Sidebar() {
     }
   };
 
-  const handleCyberClick = () => {
-    router.push('/cybersecurity');
-  };
+  const navItems = [
+    {
+      href: "/",
+      label: "Weather & Lighting",
+      icon: LayoutDashboard,
+    },
+    {
+      href: "/cybersecurity",
+      label: "Cybersecurity",
+      icon: ShieldCheck,
+    },
+    {
+      href: "/blackout",
+      label: "Power Grid",
+      icon: PowerOff,
+    },
+  ];
 
-  const handleDashboardClick = () => {
-    router.push('/');
-  };
-
-  const handleBlackoutClick = () => {
-    router.push('/blackout');
-  };
-
-  const isCyberPage = pathname === '/cybersecurity';
   const isDashboardPage = pathname === '/';
+  const isCyberPage = pathname === '/cybersecurity';
   const isBlackoutPage = pathname === '/blackout';
 
   return (
@@ -101,7 +117,7 @@ export default function Sidebar() {
       <div className="p-6 border-b border-gray-700/50 bg-gradient-to-r from-blue-900/20 to-purple-900/20">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-            <span className="text-lg">🎛️</span>
+            <Building className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
@@ -128,98 +144,66 @@ export default function Sidebar() {
 
           {/* Navigation Sections */}
           <div className="space-y-6">
-            {/* Dashboard Navigation */}
-            <button
-              onClick={handleDashboardClick}
-              className={`
-                w-full text-left p-4 rounded-xl transition-all duration-300
-                border backdrop-blur-sm relative overflow-hidden group
-                ${isDashboardPage 
-                  ? 'bg-gradient-to-r from-blue-600/30 to-cyan-600/30 border-blue-500/50 ring-2 ring-blue-500/30' 
-                  : 'border-blue-500/30 bg-gradient-to-r from-blue-900/20 to-cyan-800/10 hover:from-blue-800/30 hover:to-cyan-700/20'
-                }
-                hover:transform hover:scale-[1.02] hover:shadow-lg
-              `}
-            >
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
-                  <span className="text-sm">🏙️</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white group-hover:text-blue-200 transition-colors">
-                    Weather Dashboard
-                  </h3>
-                  <p className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">
-                    Environmental monitoring & control
-                  </p>
-                  {isDashboardPage && (
-                    <span className="text-xs text-blue-400 font-medium">✓ ACTIVE</span>
-                  )}
-                </div>
-              </div>
-            </button>
+            
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              let activeClasses = '';
+              let inactiveClasses = '';
 
-            {/* Cybersecurity Navigation */}
-            <button
-              onClick={handleCyberClick}
-              className={`
-                w-full text-left p-4 rounded-xl transition-all duration-300
-                border backdrop-blur-sm relative overflow-hidden group
-                ${isCyberPage 
-                  ? 'bg-gradient-to-r from-red-600/30 to-purple-600/30 border-red-500/50 ring-2 ring-red-500/30' 
-                  : 'border-red-500/30 bg-gradient-to-r from-red-900/20 to-purple-800/10 hover:from-red-800/30 hover:to-purple-700/20'
-                }
-                hover:transform hover:scale-[1.02] hover:shadow-lg
-              `}
-            >
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <span className="text-sm">🛡️</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white group-hover:text-red-200 transition-colors">
-                    Cyber Defense
-                  </h3>
-                  <p className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">
-                    Security monitoring & SOAR pipeline
-                  </p>
-                  {isCyberPage && (
-                    <span className="text-xs text-red-400 font-medium">✓ ACTIVE</span>
-                  )}
-                </div>
-              </div>
-            </button>
+              if (item.href === '/') { // Weather
+                activeClasses = 'bg-gradient-to-r from-blue-600/30 to-cyan-600/30 border-blue-500/50 ring-2 ring-blue-500/30';
+                inactiveClasses = 'border-blue-500/30 bg-gradient-to-r from-blue-900/20 to-cyan-800/10 hover:from-blue-800/30 hover:to-cyan-700/20';
+              } else if (item.href === '/cybersecurity') { // Cyber
+                activeClasses = 'bg-gradient-to-r from-red-600/30 to-purple-600/30 border-red-500/50 ring-2 ring-red-500/30';
+                inactiveClasses = 'border-red-500/30 bg-gradient-to-r from-red-900/20 to-purple-800/10 hover:from-red-800/30 hover:to-purple-700/20';
+              } else if (item.href === '/blackout') { // Blackout
+                activeClasses = 'bg-gradient-to-r from-yellow-600/30 to-orange-600/30 border-yellow-500/50 ring-2 ring-yellow-500/30';
+                inactiveClasses = 'border-yellow-500/30 bg-gradient-to-r from-yellow-900/20 to-orange-800/10 hover:from-yellow-800/30 hover:to-orange-700/20';
+              }
 
-            {/* Blackout Management Navigation */}
-            <button
-              onClick={handleBlackoutClick}
-              className={`
-                w-full text-left p-4 rounded-xl transition-all duration-300
-                border backdrop-blur-sm relative overflow-hidden group
-                ${isBlackoutPage 
-                  ? 'bg-gradient-to-r from-yellow-600/30 to-orange-600/30 border-yellow-500/50 ring-2 ring-yellow-500/30' 
-                  : 'border-yellow-500/30 bg-gradient-to-r from-yellow-900/20 to-orange-800/10 hover:from-yellow-800/30 hover:to-orange-700/20'
-                }
-                hover:transform hover:scale-[1.02] hover:shadow-lg
-              `}
-            >
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-lg flex items-center justify-center">
-                  <span className="text-sm">⚡</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white group-hover:text-yellow-200 transition-colors">
-                    Blackout Management
-                  </h3>
-                  <p className="text-xs text-gray-400 group-hover:text-gray-300 transition-colors">
-                    Power grid & emergency allocation
-                  </p>
-                  {isBlackoutPage && (
-                    <span className="text-xs text-yellow-400 font-medium">✓ ACTIVE</span>
+              return (
+                <button
+                  key={item.href}
+                  onClick={() => router.push(item.href)}
+                  className={cn(
+                    `w-full text-left p-4 rounded-xl transition-all duration-300
+                    border backdrop-blur-sm relative overflow-hidden group
+                    hover:transform hover:scale-[1.02] hover:shadow-lg`,
+                    isActive ? activeClasses : inactiveClasses
                   )}
-                </div>
-              </div>
-            </button>
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center",
+                      item.href === '/' && 'bg-gradient-to-br from-blue-500 to-cyan-600',
+                      item.href === '/cybersecurity' && 'bg-gradient-to-br from-red-500 to-purple-600',
+                      item.href === '/blackout' && 'bg-gradient-to-br from-yellow-500 to-orange-600'
+                    )}>
+                      <item.icon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className={cn(
+                        "text-lg font-semibold text-white transition-colors",
+                        item.href === '/' && 'group-hover:text-blue-200',
+                        item.href === '/cybersecurity' && 'group-hover:text-red-200',
+                        item.href === '/blackout' && 'group-hover:text-yellow-200'
+                      )}>
+                        {item.label}
+                      </h3>
+                      {isActive && (
+                        <span className={cn(
+                          "text-xs font-medium",
+                          item.href === '/' && 'text-blue-400',
+                          item.href === '/cybersecurity' && 'text-red-400',
+                          item.href === '/blackout' && 'text-yellow-400'
+                        )}>✓ ACTIVE</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+           
 
             {/* Weather Simulation Section - Only show on dashboard */}
             {isDashboardPage && (
@@ -241,20 +225,18 @@ export default function Sidebar() {
                       key={scenario.id}
                       onClick={() => handleSimulate(scenario.id)}
                       disabled={!!isLoading}
-                      className={`
-                        group w-full text-left p-4 rounded-xl transition-all duration-300
-                        border backdrop-blur-sm relative overflow-hidden
-                        ${isLoading === scenario.id 
+                      className={cn(
+                        `group w-full text-left p-4 rounded-xl transition-all duration-300
+                        border backdrop-blur-sm relative overflow-hidden`,
+                        isLoading === scenario.id 
                           ? 'bg-gradient-to-r from-blue-600/30 to-purple-600/30 border-blue-500/50 cursor-wait' 
-                          : severityStyles[scenario.severity as keyof typeof severityStyles]
-                        }
-                        ${isLoading && isLoading !== scenario.id 
+                          : severityStyles[scenario.severity as keyof typeof severityStyles],
+                        isLoading && isLoading !== scenario.id 
                           ? 'opacity-50 cursor-not-allowed' 
-                          : 'hover:transform hover:scale-[1.02] hover:shadow-lg'
-                        }
-                        ${lastSimulation === scenario.id ? 'ring-2 ring-green-500/50' : ''}
-                        disabled:transform-none
-                      `}
+                          : 'hover:transform hover:scale-[1.02] hover:shadow-lg',
+                        lastSimulation === scenario.id ? 'ring-2 ring-green-500/50' : '',
+                        'disabled:transform-none'
+                      )}
                     >
                       {/* Loading overlay */}
                       {isLoading === scenario.id && (
@@ -293,6 +275,7 @@ export default function Sidebar() {
               </div>
             )}
 
+            {/* --- MODIFICATION: Added Cyber Controls --- */}
             {/* Cybersecurity Info - Only show on cyber page */}
             {isCyberPage && (
               <div className="space-y-4 pt-4 border-t border-gray-700/30">
@@ -302,24 +285,18 @@ export default function Sidebar() {
                     <span className="text-red-400 font-semibold text-sm">CYBER DEFENSE ACTIVE</span>
                   </div>
                   <p className="text-xs text-gray-400">
-                    SOAR pipeline monitoring all zones. Use the attack simulator to test response capabilities.
+                    SOAR pipeline monitoring all zones. Use the simulator to test response capabilities.
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="p-3 bg-gray-800/50 rounded-lg text-center">
-                    <p className="text-green-400 font-bold text-lg">5</p>
-                    <p className="text-gray-400 text-xs">Protected Zones</p>
-                  </div>
-                  <div className="p-3 bg-gray-800/50 rounded-lg text-center">
-                    <p className="text-cyan-400 font-bold text-lg">0</p>
-                    <p className="text-gray-400 text-xs">Active Threats</p>
-                  </div>
-                </div>
+                {/* --- NEW: Render Cyber Controls --- */}
+                {cyberControls}
               </div>
             )}
+            {/* --- END OF MODIFICATION --- */}
 
-            {/* Blackout Info - Only show on blackout page */}
+
+            {/* Blackout Info - Renders controls from prop */}
             {isBlackoutPage && (
               <div className="space-y-4 pt-4 border-t border-gray-700/30">
                 <div className="p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-xl">
@@ -328,20 +305,12 @@ export default function Sidebar() {
                     <span className="text-yellow-400 font-semibold text-sm">POWER GRID MONITORING</span>
                   </div>
                   <p className="text-xs text-gray-400">
-                    AI-driven blackout management protecting 2.43M citizens. Use the simulator to test power allocation.
+                    AI-driven blackout management. Use the simulator to test power allocation.
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="p-3 bg-gray-800/50 rounded-lg text-center">
-                    <p className="text-green-400 font-bold text-lg">8</p>
-                    <p className="text-gray-400 text-xs">Power Zones</p>
-                  </div>
-                  <div className="p-3 bg-gray-800/50 rounded-lg text-center">
-                    <p className="text-cyan-400 font-bold text-lg">610</p>
-                    <p className="text-gray-400 text-xs">MW Capacity</p>
-                  </div>
-                </div>
+                {/* --- Render Blackout Controls --- */}
+                {blackoutControls}
               </div>
             )}
           </div>
@@ -350,3 +319,4 @@ export default function Sidebar() {
     </div>
   );
 }
+

@@ -35,7 +35,7 @@ const PRIORITY_COLORS: { [key: string]: string } = {
 };
 
 const getWeatherSVG = (condition: string): string => {
-  const commonProps = `fill="none" stroke="white" stroke-width="2" strokeLinecap="round" strokeLinejoin="round"`;
+  const commonProps = `fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
   if (condition.includes('rain') || condition.includes('drizzle')) {
     return `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" ${commonProps}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M8 19v1m4-1v1m4-1v1"/></svg>`;
   }
@@ -55,44 +55,54 @@ const getWeatherSVG = (condition: string): string => {
 };
 
 const createPoleIcon = (pole: Pole, weatherCondition: string) => {
-    if (pole.status !== 'ONLINE') {
+    try {
+        if (pole.status !== 'ONLINE') {
+            return L.divIcon({
+            html: `<div class="flex items-center justify-center w-6 h-6 bg-red-700 border-2 border-white rounded-full text-white font-bold shadow-lg">X</div>`,
+            className: '',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+            });
+        }
+
+        const svgIcon = getWeatherSVG(weatherCondition);
+        const brightness = pole.brightness / 100;
+        const priorityColor = PRIORITY_COLORS[pole.priority] || PRIORITY_COLORS['Low'];
+        const glowSize = 2 + Math.floor(brightness * 12);
+        const opacity = 0.8 + brightness * 0.2;
+        
+        const iconHtml = `
+            <div style="
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background-color: rgba(${priorityColor}, 0.3);
+            box-shadow: 0 0 ${glowSize}px 2px rgba(${priorityColor}, ${opacity * 0.7});
+            opacity: ${opacity};
+            transition: all 0.3s ease;
+            ">
+            ${svgIcon}
+            </div>
+        `;
+
         return L.divIcon({
-        html: `<div class="flex items-center justify-center w-6 h-6 bg-red-700 border-2 border-white rounded-full text-white font-bold shadow-lg">X</div>`,
-        className: '',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
+            html: iconHtml,
+            className: '',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14], 
+        });
+    } catch (error) {
+        console.error('Failed to create pole icon:', error);
+        return L.divIcon({
+            html: `<div style=\"width: 12px; height: 12px; border-radius: 9999px; background: #60a5fa; border: 2px solid white;\"></div>`,
+            className: '',
+            iconSize: [12, 12],
+            iconAnchor: [6, 6],
         });
     }
-
-    const svgIcon = getWeatherSVG(weatherCondition);
-    const brightness = pole.brightness / 100;
-    const priorityColor = PRIORITY_COLORS[pole.priority] || PRIORITY_COLORS['Low'];
-    const glowSize = 2 + Math.floor(brightness * 12);
-    const opacity = 0.8 + brightness * 0.2;
-    
-    const iconHtml = `
-        <div style="
-        width: 28px;
-        height: 28px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        background-color: rgba(${priorityColor}, 0.3);
-        box-shadow: 0 0 ${glowSize}px 2px rgba(${priorityColor}, ${opacity * 0.7});
-        opacity: ${opacity};
-        transition: all 0.3s ease;
-        ">
-        ${svgIcon}
-        </div>
-    `;
-
-    return L.divIcon({
-        html: iconHtml,
-        className: '',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14], 
-    });
 };
 
 // A simple component to handle events on map layers
@@ -117,7 +127,7 @@ export default function MapComponent({ zones, weatherCondition, onZoneClick }: M
       center={position}
       zoom={11}
       style={{ height: '100%', width: '100%' }}
-      className="z-0"
+      className="h-full w-full z-0"
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'

@@ -1,5 +1,5 @@
-// frontend/src/lib/redux/dashboardSlice.ts
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction, createSelector } from '@reduxjs/toolkit';
+import type { RootState } from './store'; // Import RootState for selectors
 
 // --- Define the types for our data ---
 
@@ -64,9 +64,12 @@ interface AgentResult {
 
 // --- Dashboard State ---
 
+// --- NEW: Define the status type explicitly ---
+type DashboardStatus = 'idle' | 'loading' | 'succeeded' | 'failed';
+
 interface DashboardState {
     zones: Zone[];
-    status: 'idle' | 'loading' | 'succeeded' | 'failed';
+    status: DashboardStatus;
     latestAgentRun: AgentResult | null;
 }
 
@@ -98,4 +101,34 @@ const dashboardSlice = createSlice({
 });
 
 export const { setLoading, setDashboardState, setError } = dashboardSlice.actions;
+
+// --- NEW: ADDED SELECTORS ---
+
+// Base selectors
+const selectDashboard = (state: RootState) => state.dashboard;
+export const selectZones = (state: RootState) => state.dashboard.zones;
+export const selectDashboardStatus = (state: RootState) => state.dashboard.status;
+
+// Memoized selectors for performance
+export const selectAllPoles = createSelector(
+    [selectZones],
+    (zones) => zones.flatMap(zone => zone.poles)
+);
+
+export const selectOnlinePoles = createSelector(
+    [selectAllPoles],
+    (allPoles) => allPoles.filter(p => p.status === 'ONLINE')
+);
+
+export const selectAverageBrightness = createSelector(
+    [selectOnlinePoles],
+    (onlinePoles) => {
+        if (onlinePoles.length === 0) return 0;
+        const totalBrightness = onlinePoles.reduce((acc, p) => acc + p.brightness, 0);
+        return totalBrightness / onlinePoles.length;
+    }
+);
+
+// --- END OF NEW SELECTORS ---
+
 export default dashboardSlice.reducer;
