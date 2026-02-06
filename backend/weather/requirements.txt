@@ -12,3 +12,4 @@ langchain-groq
 sentence-transformers
 langchain-pinecone
 langchain-community
+pyreadline3

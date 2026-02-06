@@ -1,113 +1,66 @@
+# backend/weather/tools/collector_tools.py
 import os
-import random
 import requests
-import logging
-from datetime import datetime, timezone
-from typing import Dict, Any
+from langchain.tools import tool
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-API_TIMEOUT = 10
-WEATHER_API_BASE_URL = "http://api.weatherapi.com/v1/current.json"
-
-def get_live_weather(location: str, state: dict) -> Dict[str, Any]:
+# --- Real Weather Data ---
+@tool
+def fetch_weather_data(location: str):
     """
-    Fetches live weather data and saves the raw dictionary to session state.
+    Fetches real-time weather data.
+    'location' can be a city name (e.g. 'Mumbai') or coordinates (e.g. '19.089,72.865').
     """
-    api_key = os.environ.get("WEATHER_API_KEY") or "2a8cb759288745b69f7123240251708"
-    params = {"key": api_key, "q": location, "aqi": "yes"}
+    api_key = os.getenv("WEATHER_API_KEY")
+    if not api_key:
+        return {"error": "Weather API key not found."}
+
+    # WeatherAPI accepts "lat,lon" directly in the 'q' parameter
+    url = f"http://api.weatherapi.com/v1/current.json?key={api_key}&q={location}&aqi=no"
     
-    collection_start = datetime.now(timezone.utc)
     try:
-        logger.info(f"Fetching weather data for location: {location}")
-        response = requests.get(WEATHER_API_BASE_URL, params=params, timeout=API_TIMEOUT)
-        response.raise_for_status()
-        weather_data = response.json()
+        response = requests.get(url)
+        data = response.json()
         
-        weather_data["collection_metadata"] = {
-            "collected_at": collection_start.isoformat(),
-            "response_time_ms": int((datetime.now(timezone.utc) - collection_start).total_seconds() * 1000),
-            "api_status": "success",
-            "data_source": "WeatherAPI",
-            "location_resolved": weather_data.get("location", {}).get("name", location)
+        if "error" in data:
+            return {"error": data["error"]["message"]}
+            
+        return {
+            "condition": data["current"]["condition"]["text"],
+            "temperature": data["current"]["temp_c"],
+            "humidity": data["current"]["humidity"],
+            "wind_kph": data["current"]["wind_kph"],
+            "precip_mm": data["current"]["precip_mm"],
+            "visibility_km": data["current"]["vis_km"],
+            "is_day": data["current"]["is_day"]
         }
+    except Exception as e:
+        return {"error": str(e)}
 
-        state["weather_data"] = weather_data
-        logger.info(f"Successfully saved weather data for {location} to state.")
-        return {"status": "success", "message": "Weather data collected and saved."}
-
-    except requests.exceptions.RequestException as e:
-        error_msg = f"Weather API request failed: {str(e)}"
-        logger.error(error_msg)
-        # Still save an error marker to state if needed
-        state["weather_data"] = {"error": error_msg}
-        return {"status": "error", "message": error_msg}
-
-def get_enhanced_synthetic_cctv_data(zone_id: str, state: dict) -> Dict[str, Any]:
+# --- Synthetic CCTV / Traffic Data ---
+# (We will upgrade this to Real TomTom Data in the next step)
+@tool
+def get_enhanced_synthetic_cctv_data(time_of_day: str = "day"):
     """
-    Generates simulated CCTV data and saves the raw dictionary to session state.
+    Generates synthetic CCTV analysis data for traffic and crowd density.
     """
-    logger.info(f"Generating enhanced synthetic CCTV data for zone: {zone_id}")
-    current_hour = datetime.now().hour
+    import random
     
-    if 7 <= current_hour <= 9 or 17 <= current_hour <= 19:
-        base_vehicle_multiplier, base_pedestrian_multiplier = 1.5, 1.3
-    elif 22 <= current_hour or current_hour <= 6:
-        base_vehicle_multiplier, base_pedestrian_multiplier = 0.4, 0.3
+    # Simulate variations based on time
+    if time_of_day == "peak_morning":
+        congestion = random.uniform(0.7, 0.95)
+        crowd = random.randint(50, 150)
+    elif time_of_day == "night":
+        congestion = random.uniform(0.1, 0.3)
+        crowd = random.randint(5, 20)
     else:
-        base_vehicle_multiplier, base_pedestrian_multiplier = 1.0, 1.0
-    
-    cctv_data = {
-        "zone_id": zone_id, 
-        "collected_at": datetime.now(timezone.utc).isoformat(),
-        "pedestrian_count": max(1, int(random.randint(5, 50) * base_pedestrian_multiplier)), 
-        "vehicle_count": max(2, int(random.randint(10, 100) * base_vehicle_multiplier)),
-        "congestion_level": round(min(1.0, (random.randint(5, 50) + random.randint(10, 100)) / 150), 3), 
-        "incident_detected": random.random() < 0.05,
-        "camera_metadata": {
-            "camera_id": f"CAM-{zone_id}-01", 
-            "detection_confidence": round(random.uniform(0.85, 0.98), 3)
-        }
-    }
-    if cctv_data["incident_detected"]:
-        cctv_data["incident_details"] = {"type": random.choice(["minor_collision", "stalled_vehicle"])}
-    
-    # Save the raw data directly to the session state
-    state["cctv_data"] = cctv_data
-    logger.info(f"Successfully saved CCTV data for {zone_id} to state.")
-    return {"status": "success", "message": "CCTV data collected and saved."}
+        congestion = random.uniform(0.3, 0.7)
+        crowd = random.randint(20, 80)
 
-def get_enhanced_synthetic_iot_sensor_data(zone_id: str, state: dict) -> Dict[str, Any]:
-    """
-    Generates simulated IoT data and saves the raw dictionary to session state.
-    """
-    logger.info(f"Generating enhanced synthetic IoT sensor data for zone: {zone_id}")
-    current_hour = datetime.now().hour
-    
-    if 7 <= current_hour <= 9 or 17 <= current_hour <= 19:
-        aqi_base, noise_base = random.randint(80, 150), random.randint(65, 90)
-    else:
-        aqi_base, noise_base = random.randint(40, 100), random.randint(50, 75)
-    light_range = (200, 800) if 6 <= current_hour <= 18 else (5, 200)
-    
-    iot_data = {
-        "zone_id": zone_id, 
-        "collected_at": datetime.now(timezone.utc).isoformat(),
-        "air_quality_index": aqi_base, 
-        "noise_level_db": noise_base,
-        "ambient_light_lux": random.randint(*light_range),
-        "sensor_metadata": {
-            "sensor_network_id": f"IoT-{zone_id}", 
-            "data_reliability": round(random.uniform(0.90, 0.99), 3)
-        },
-        "additional_metrics": {
-            "humidity_percent": random.randint(40, 80), 
-            "uv_index": max(0, random.randint(0, 11) if 6 <= current_hour <= 18 else 0)
-        }
+    return {
+        "detected_objects": ["car", "bus", "pedestrian", "bike"],
+        "vehicle_count": random.randint(10, 50),
+        "congestion_level": round(congestion, 2), # 0.0 to 1.0
+        "estimated_crowd_density": crowd,
+        "average_speed_kmh": random.randint(10, 60),
+        "incident_detected": random.choice([True, False, False, False]) # 25% chance of incident
     }
-    
-    # Save the raw data directly to the session state
-    state["iot_data"] = iot_data
-    logger.info(f"Successfully saved IoT data for {zone_id} to state.")
-    return {"status": "success", "message": "IoT data collected and saved."}

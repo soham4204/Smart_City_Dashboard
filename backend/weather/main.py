@@ -1,75 +1,37 @@
-# backend/main.py
+# backend/weather/main.py
 import json
-from datetime import datetime # Import the datetime module
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from datetime import datetime
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlmodel import Session, select, SQLModel  # Added SQLModel to imports
 
 # Local imports
 from websocket_manager import manager
 from agent import agent_app
-from models import DashboardState, Zone, LightPole, SimulationRequest, OverrideRequest
+from models import Zone, LightPole, SimulationRequest, OverrideRequest, ZoneCreate
+from database import create_db_and_tables, get_session, seed_data_if_empty
 
 # --- App Setup ---
-app = FastAPI(
-    title="Smart City Dashboard API",
-    version="1.0"
-)
+app = FastAPI(title="Smart City Dashboard API", version="2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    # Restrict to your frontend's URL for better security
     allow_origins=["http://localhost:3000"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- Global Data & Configs ---
-ZONE_CONFIGS = {
-    "CSM International Airport": {"heat_threshold": 38, "congestion_threshold": 0.8},
-    "KEM Hospital": {"heat_threshold": 40, "congestion_threshold": 0.7},
-    "Dadar Residential Area": {"heat_threshold": 36, "congestion_threshold": 0.85},
-}
+# --- Startup Event ---
+@app.on_event("startup")
+def on_startup():
+    create_db_and_tables()
+    seed_data_if_empty()
 
-MOCK_DASHBOARD_STATE = DashboardState(
-    zones=[
-        Zone(
-            id="airport_zone", name="CSM International Airport", color="#f97316",
-            poles=[
-                LightPole(id="AIR-01", location=(19.0896, 72.8656), brightness=80, status="ONLINE", priority="Medium", manual_override=False, group="CSM International Airport"),
-                LightPole(id="AIR-02", location=(19.0912, 72.8648), brightness=80, status="ONLINE", priority="Medium", manual_override=False, group="CSM International Airport"),
-                LightPole(id="AIR-03", location=(19.0881, 72.8665), brightness=0, status="OFFLINE", priority="Medium", manual_override=False, group="CSM International Airport"),
-                LightPole(id="AIR-04", location=(19.0925, 72.8670), brightness=80, status="ONLINE", priority="Medium", manual_override=False, group="CSM International Airport"),
-                LightPole(id="AIR-05", location=(19.0870, 72.8630), brightness=80, status="ONLINE", priority="Medium", manual_override=False, group="CSM International Airport"),
-            ]
-        ),
-        Zone(
-            id="hospital_zone", name="KEM Hospital", color="#ef4444",
-            poles=[
-                LightPole(id="HOS-01", location=(19.0150, 72.8400), brightness=90, status="ONLINE", priority="High", manual_override=False, group="KEM Hospital"),
-                LightPole(id="HOS-02", location=(19.0165, 72.8395), brightness=90, status="ONLINE", priority="High", manual_override=False, group="KEM Hospital"),
-                LightPole(id="HOS-03", location=(19.0140, 72.8410), brightness=90, status="ONLINE", priority="High", manual_override=False, group="KEM Hospital"),
-                LightPole(id="HOS-04", location=(19.0158, 72.8415), brightness=0, status="MAINTENANCE", priority="High", manual_override=False, group="KEM Hospital"),
-            ]
-        ),
-        Zone(
-            id="residential_zone", name="Dadar Residential Area", color="#3b82f6",
-             poles=[
-                LightPole(id="RES-01", location=(19.0220, 72.8440), brightness=60, status="ONLINE", priority="Low", manual_override=False, group="Dadar Residential Area"),
-                LightPole(id="RES-02", location=(19.0235, 72.8430), brightness=65, status="ONLINE", priority="Low", manual_override=False, group="Dadar Residential Area"),
-                LightPole(id="RES-03", location=(19.0210, 72.8450), brightness=60, status="ONLINE", priority="Low", manual_override=False, group="Dadar Residential Area"),
-                LightPole(id="RES-04", location=(19.0245, 72.8420), brightness=65, status="ONLINE", priority="Low", manual_override=False, group="Dadar Residential Area"),
-                LightPole(id="RES-05", location=(19.0228, 72.8460), brightness=60, status="ONLINE", priority="Low", manual_override=False, group="Dadar Residential Area"),
-            ]
-        )
-    ]
-)
-
-# --- ADDED: Helper for Logging ---
+# --- Helpers ---
 def log_event(message: str):
     """Appends an event to the events.log file."""
     timestamp = datetime.now().strftime("%I:%M:%S %p")
-    # Use 'a' to append to the file, which creates it if it doesn't exist
     with open("events.log", "a") as f:
         f.write(f"{timestamp} | {message}\n")
 
@@ -77,120 +39,215 @@ def log_event(message: str):
 
 @app.get("/")
 def read_root():
-    return {"status": "API is running"}
+    return {"status": "API is running (Database Connected)"}
 
-@app.get("/api/v1/agent/logs")
-async def get_agent_logs():
-    """Reads and returns the content of the agent events log file."""
-    try:
-        with open("events.log", "r") as f:
-            # Read lines and reverse them to show the latest first
-            logs = f.readlines()[::-1]
-            return {"logs": "".join(logs)}
-    except FileNotFoundError:
-        return {"logs": "Log file not found."}
+@app.get("/api/v1/dashboard/initial-state")
+async def get_initial_state(session: Session = Depends(get_session)):
+    zones = session.exec(select(Zone)).all()
+    # Explicitly constructing response to ensure 'location' property is serialized
+    response_zones = []
+    for z in zones:
+        z_dict = z.model_dump()
+        # Manually attach poles with the computed 'location' property
+        z_dict['poles'] = [
+            {**p.model_dump(), "location": p.location} for p in z.poles
+        ]
+        response_zones.append(z_dict)
+        
+    return {"zones": response_zones}
 
+# --- Admin / Config Endpoints ---
 
-@app.get("/api/v1/dashboard/initial-state", response_model=DashboardState)
-async def get_initial_state():
-    return MOCK_DASHBOARD_STATE
+@app.get("/api/v1/zones/{zone_id}/config")
+async def get_zone_config(zone_id: str, session: Session = Depends(get_session)):
+    zone = session.get(Zone, zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    return {"heat_threshold": zone.heat_threshold, "congestion_threshold": zone.congestion_threshold}
 
-# --- NEW: Endpoint to GET a zone's configuration ---
-@app.get("/api/v1/zones/{zone_name}/config")
-async def get_zone_config(zone_name: str):
-    return ZONE_CONFIGS.get(zone_name, {})
+@app.post("/api/v1/zones/{zone_id}/config")
+async def set_zone_config(zone_id: str, config: dict, session: Session = Depends(get_session)):
+    zone = session.get(Zone, zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    
+    if "heat_threshold" in config:
+        zone.heat_threshold = config["heat_threshold"]
+    if "congestion_threshold" in config:
+        zone.congestion_threshold = config["congestion_threshold"]
+    
+    session.add(zone)
+    session.commit()
+    session.refresh(zone)
+    log_event(f"Config Update | Zone: {zone.name} updated config.")
+    return {"success": True, "new_config": config}
 
-# --- NEW: Endpoint to UPDATE a zone's configuration ---
-@app.post("/api/v1/zones/{zone_name}/config")
-async def set_zone_config(zone_name: str, config: dict):
-    if zone_name in ZONE_CONFIGS:
-        ZONE_CONFIGS[zone_name].update(config)
-        log_event(f"Config Update | Zone: {zone_name} updated to {config}")
-        return {"success": True, "zone_name": zone_name, "new_config": ZONE_CONFIGS[zone_name]}
-    return {"success": False, "message": "Zone not found"}
+# --- NEW: Infrastructure Management (Add Light Pole) ---
 
+class PoleCreate(SQLModel):
+    id: str
+    zone_id: str
+    latitude: float
+    longitude: float
+    priority: str = "Medium"
+
+@app.post("/api/v1/poles")
+async def create_light_pole(pole_data: PoleCreate, session: Session = Depends(get_session)):
+    # 1. Check if zone exists
+    zone = session.get(Zone, pole_data.zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    
+    # 2. Check if pole ID already exists
+    existing_pole = session.get(LightPole, pole_data.id)
+    if existing_pole:
+        raise HTTPException(status_code=400, detail="Pole ID already exists")
+
+    # 3. Create and Save
+    new_pole = LightPole(
+        id=pole_data.id,
+        zone_id=pole_data.zone_id,
+        latitude=pole_data.latitude,
+        longitude=pole_data.longitude,
+        priority=pole_data.priority,
+        brightness=0,       # Default off
+        status="ONLINE",    # Default online
+        group=zone.name     # Legacy frontend compatibility
+    )
+    
+    session.add(new_pole)
+    session.commit()
+    
+    log_event(f"Infrastructure Added | New Pole {new_pole.id} added to {zone.name}")
+    
+    # 4. Broadcast update so Map updates immediately
+    zones = session.exec(select(Zone)).all()
+    payload_zones = []
+    for z in zones:
+        z_dict = z.model_dump()
+        z_dict['poles'] = [{**p.model_dump(), "location": p.location} for p in z.poles]
+        payload_zones.append(z_dict)
+
+    await manager.broadcast(json.dumps({"zones": payload_zones}))
+    
+    return {"success": True, "pole": new_pole}
+
+# --- Simulation & Control Endpoints ---
 
 @app.post("/api/v1/simulation/weather")
-async def simulate_weather(request: SimulationRequest):
-    sim_zone_name = MOCK_DASHBOARD_STATE.zones[0].name
-    location = "Mumbai"
+async def simulate_weather(request: SimulationRequest, session: Session = Depends(get_session)):
+    # 1. Fetch State from DB
+    zones = session.exec(select(Zone)).all()
+    target_zone = zones[0] # Default to first zone for simulation context
     
-    config = ZONE_CONFIGS.get(sim_zone_name, {})
+    log_event(f"Simulation Triggered | Scenario: {request.scenario}")
     
-    log_event(f"Simulation Triggered | Zone: {sim_zone_name}, Scenario: {request.scenario}")
-    
+    # 2. Run Agent
     inputs = {
         "scenario": request.scenario,
-        "location": location,
-        "zone_id": MOCK_DASHBOARD_STATE.zones[0].id,
-        "config": config,
+        "location": "Mumbai",
+        "zone_id": target_zone.id,
+        "config": {"heat_threshold": target_zone.heat_threshold},
     }
-
     result = agent_app.invoke(inputs)
 
+    # 3. Apply Agent Decisions to DB
     control_action = result.get('control_action', {})
     new_brightness = control_action.get('brightness')
-    verdict = result.get('final_verdict', 'No verdict.')
-
-    log_event(f"Agent Decision | Brightness set to {new_brightness}%.")
-    log_event(f"LLM Judge Verdict | {verdict}")
-
+    
     if new_brightness is not None:
-        for zone in MOCK_DASHBOARD_STATE.zones:
-            for pole in zone.poles:
-                if pole.status == "ONLINE" and not pole.manual_override:
-                    pole.brightness = new_brightness
+        # Update ALL online poles in DB
+        poles = session.exec(select(LightPole).where(LightPole.status == "ONLINE", LightPole.manual_override == False)).all()
+        for pole in poles:
+            pole.brightness = new_brightness
+            session.add(pole)
+        session.commit()
+        log_event(f"Agent Decision | Set {len(poles)} poles to {new_brightness}% brightness.")
 
-    # Build a consistent and enriched payload for the WebSocket broadcast
+    # 4. Broadcast Update
+    # Re-fetch fresh state
+    fresh_zones = session.exec(select(Zone)).all()
+    payload_zones = []
+    for z in fresh_zones:
+        z_dict = z.model_dump()
+        z_dict['poles'] = [{**p.model_dump(), "location": p.location} for p in z.poles]
+        payload_zones.append(z_dict)
+
     payload = {
-        "zones": [zone.model_dump() for zone in MOCK_DASHBOARD_STATE.zones],
+        "zones": payload_zones,
         "agentResult": result,
     }
-
     await manager.broadcast(json.dumps(payload, default=str))
     
-    return {
-        "message": "Simulation successful", 
-        "new_brightness": new_brightness,
-        "judge_verdict": verdict,
-    }
+    return {"message": "Simulation successful", "judge_verdict": result.get('final_verdict')}
 
 @app.post("/api/v1/poles/{pole_id}/override")
-async def set_manual_override(pole_id: str, request: OverrideRequest):
-    # ADDED: Logging for manual overrides
+async def set_manual_override(pole_id: str, request: OverrideRequest, session: Session = Depends(get_session)):
+    pole = session.get(LightPole, pole_id)
+    if not pole:
+        return {"success": False, "message": "Pole not found"}
+    
+    pole.manual_override = request.manual_override
+    pole.brightness = request.brightness
+    session.add(pole)
+    session.commit()
+    
     log_event(f"Manual Override | Pole: {pole_id} set to {request.brightness}%")
-    pole_found = False
-    for zone in MOCK_DASHBOARD_STATE.zones:
-        for pole in zone.poles:
-            if pole.id == pole_id:
-                pole.manual_override = request.manual_override
-                pole.brightness = request.brightness
-                pole_found = True
-                break
-        if pole_found:
-            break
     
-    if pole_found:
-        # FIXED: Send a consistent payload structure
-        payload = {
-            "zones": [zone.model_dump() for zone in MOCK_DASHBOARD_STATE.zones]
-        }
-        await manager.broadcast(json.dumps(payload))
-        return {"success": True, "pole_id": pole_id}
+    # Broadcast update
+    zones = session.exec(select(Zone)).all()
+    payload_zones = []
+    for z in zones:
+        z_dict = z.model_dump()
+        z_dict['poles'] = [{**p.model_dump(), "location": p.location} for p in z.poles]
+        payload_zones.append(z_dict)
+
+    await manager.broadcast(json.dumps({"zones": payload_zones}))
+    return {"success": True, "pole_id": pole_id}
+
+# backend/weather/main.py
+
+@app.delete("/api/v1/poles/{pole_id}")
+async def delete_light_pole(pole_id: str, session: Session = Depends(get_session)):
+    pole = session.get(LightPole, pole_id)
+    if not pole:
+        raise HTTPException(status_code=404, detail="Pole not found")
     
-    return {"success": False, "message": "Pole not found"}
+    zone_name = pole.zone.name if pole.zone else "Unknown Zone"
+    
+    session.delete(pole)
+    session.commit()
+    
+    log_event(f"Infrastructure Removed | Pole {pole_id} deleted from {zone_name}")
+    
+    # Broadcast update so Map removes the marker immediately
+    zones = session.exec(select(Zone)).all()
+    payload_zones = []
+    for z in zones:
+        z_dict = z.model_dump()
+        z_dict['poles'] = [{**p.model_dump(), "location": p.location} for p in z.poles]
+        payload_zones.append(z_dict)
+
+    await manager.broadcast(json.dumps({"zones": payload_zones}))
+    
+    return {"success": True, "message": f"Pole {pole_id} deleted"}
 
 @app.websocket("/ws/updates")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, session: Session = Depends(get_session)):
     await manager.connect(websocket)
-    # Send initial state on connect
-    initial_payload = { "zones": [zone.model_dump() for zone in MOCK_DASHBOARD_STATE.zones] }
-    await websocket.send_text(json.dumps(initial_payload))
+    
+    # Send initial state
+    zones = session.exec(select(Zone)).all()
+    payload_zones = []
+    for z in zones:
+        z_dict = z.model_dump()
+        z_dict['poles'] = [{**p.model_dump(), "location": p.location} for p in z.poles]
+        payload_zones.append(z_dict)
+
+    await websocket.send_text(json.dumps({"zones": payload_zones}))
+    
     try:
         while True:
-            # Keep the connection alive by listening for messages (even if none are expected from client)
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-        print("Client disconnected")
-
