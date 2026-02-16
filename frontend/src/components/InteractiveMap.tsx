@@ -15,10 +15,9 @@ interface Zone {
   poles: any[];
 }
 
-// Dynamically import the map component with no SSR
-const MapComponent = dynamic(() => import('./MapComponent'), {
+const Map3DComponent = dynamic(() => import('./Map3DComponent'), { 
   ssr: false,
-  loading: () => <div className="h-full w-full bg-gray-800 flex items-center justify-center">Loading Map...</div>
+  loading: () => <div className="h-full w-full bg-gray-800 flex items-center justify-center">Loading Map...</div> 
 });
 
 export default function InteractiveMap() {
@@ -48,7 +47,7 @@ export default function InteractiveMap() {
 
   return (
     <div className="relative h-full w-full">
-        <MapComponent 
+        <Map3DComponent 
             zones={zones} 
             weatherCondition={weatherCondition} 
             onZoneClick={handleZoneClick} 

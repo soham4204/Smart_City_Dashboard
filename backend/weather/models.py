@@ -10,7 +10,7 @@ class Zone(SQLModel, table=True):
     color: str
     heat_threshold: int = Field(default=40)        # Moved config into the DB
     congestion_threshold: float = Field(default=0.8) # Moved config into the DB
-    
+    height: float = Field(default=50.0)
     # Relationship
     poles: List["LightPole"] = Relationship(back_populates="zone")
 
@@ -21,6 +21,7 @@ class LightPole(SQLModel, table=True):
     # We split location for better database handling
     latitude: float
     longitude: float
+    altitude: float = Field(default=0.0)
     
     brightness: int = Field(default=0)
     status: str = Field(default="ONLINE") # ONLINE, OFFLINE, MAINTENANCE
@@ -51,3 +52,4 @@ class ZoneCreate(SQLModel):
     color: str
     heat_threshold: int = 38
     congestion_threshold: float = 0.8
+    height: float = 50.0

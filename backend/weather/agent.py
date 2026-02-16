@@ -82,7 +82,8 @@ def data_collection_node(state: AgentState) -> Dict[str, Any]:
     else:
         collector_tools.get_live_weather(state['location'], state)
 
-    collector_tools.get_enhanced_synthetic_cctv_data(state['zone_id'], state)
+    # ✅ CORRECT (Using .invoke)
+    collector_tools.get_enhanced_synthetic_cctv_data.invoke({"zone_id": state['zone_id']})
     collector_tools.get_enhanced_synthetic_iot_sensor_data(state['zone_id'], state)
 
     return {

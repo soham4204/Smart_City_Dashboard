@@ -1,5 +1,6 @@
 # backend/weather/main.py
 import json
+import random
 from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,19 +45,25 @@ def read_root():
 @app.get("/api/v1/dashboard/initial-state")
 async def get_initial_state(session: Session = Depends(get_session)):
     zones = session.exec(select(Zone)).all()
-    # Explicitly constructing response to ensure 'location' property is serialized
+    
+    # Base temperature for Mumbai today
+    base_temp = 32.0 
+
     response_zones = []
     for z in zones:
         z_dict = z.model_dump()
-        # Manually attach poles with the computed 'location' property
-        z_dict['poles'] = [
-            {**p.model_dump(), "location": p.location} for p in z.poles
-        ]
+        # Inject Virtual Sensor Data
+        z_dict['poles'] = []
+        for p in z.poles:
+            pole_data = p.model_dump()
+            pole_data["location"] = p.location
+            # SPATIAL LOGIC: Calculate specific temp for this pole's location
+            pole_data["temperature"] = calculate_heat_island_temp(base_temp, z.name)
+            z_dict['poles'].append(pole_data)
+            
         response_zones.append(z_dict)
         
     return {"zones": response_zones}
-
-# --- Admin / Config Endpoints ---
 
 @app.get("/api/v1/zones/{zone_id}/config")
 async def get_zone_config(zone_id: str, session: Session = Depends(get_session)):
@@ -89,6 +96,7 @@ class PoleCreate(SQLModel):
     zone_id: str
     latitude: float
     longitude: float
+    altitude: float = 0.0
     priority: str = "Medium"
 
 @app.post("/api/v1/poles")
@@ -109,6 +117,7 @@ async def create_light_pole(pole_data: PoleCreate, session: Session = Depends(ge
         zone_id=pole_data.zone_id,
         latitude=pole_data.latitude,
         longitude=pole_data.longitude,
+        altitude=pole_data.altitude,
         priority=pole_data.priority,
         brightness=0,       # Default off
         status="ONLINE",    # Default online
@@ -236,12 +245,19 @@ async def delete_light_pole(pole_id: str, session: Session = Depends(get_session
 async def websocket_endpoint(websocket: WebSocket, session: Session = Depends(get_session)):
     await manager.connect(websocket)
     
-    # Send initial state
+    # Send initial state with Temp
     zones = session.exec(select(Zone)).all()
+    base_temp = 32.0 
+
     payload_zones = []
     for z in zones:
         z_dict = z.model_dump()
-        z_dict['poles'] = [{**p.model_dump(), "location": p.location} for p in z.poles]
+        z_dict['poles'] = []
+        for p in z.poles:
+            pole_data = p.model_dump()
+            pole_data["location"] = p.location
+            pole_data["temperature"] = calculate_heat_island_temp(base_temp, z.name)
+            z_dict['poles'].append(pole_data)
         payload_zones.append(z_dict)
 
     await websocket.send_text(json.dumps({"zones": payload_zones}))
@@ -251,3 +267,14 @@ async def websocket_endpoint(websocket: WebSocket, session: Session = Depends(ge
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+def calculate_heat_island_temp(base_temp: float, zone_name: str) -> float:
+    # Airport and Commercial zones trap more heat (Concrete effect)
+    if "Airport" in zone_name or "Commercial" in zone_name:
+        return base_temp + random.uniform(2.0, 4.0)
+    # Hospitals/Critical often have regulated environments or green cover
+    elif "Hospital" in zone_name:
+        return base_temp + random.uniform(0.0, 1.0)
+    # Residential areas are generally cooler
+    else:
+        return base_temp - random.uniform(0.5, 1.5)
