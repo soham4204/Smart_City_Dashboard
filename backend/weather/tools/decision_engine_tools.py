@@ -13,7 +13,7 @@ load_dotenv()
 
 # --- RAG Imports ---
 from langchain_pinecone import PineconeVectorStore
-from langchain_community.embeddings import HuggingFaceEmbeddings
+# from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # Configure logging for decision engine operations
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -42,7 +42,8 @@ try:
     pinecone_index_name = os.getenv("PINECONE_INDEX_NAME", "smart-city-incidents")
     
     # Use HuggingFace embeddings (same as seed_database.py)
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    raise Exception("HuggingFaceEmbeddings disabled to prevent torch import hang")
+    # embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     
     vectorstore = PineconeVectorStore.from_existing_index(
         index_name=pinecone_index_name,

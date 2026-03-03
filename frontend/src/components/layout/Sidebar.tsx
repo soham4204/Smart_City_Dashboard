@@ -5,37 +5,38 @@ import { useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, ShieldCheck, PowerOff, Building } from 'lucide-react';
 
-// --- MODIFICATION: Added cyberControls prop ---
+// --- MODIFICATION: Added cyberControls and trafficControls prop ---
 interface SidebarProps {
   cyberControls?: ReactNode;
   blackoutControls?: ReactNode;
+  trafficControls?: ReactNode;
 }
 // --- END OF MODIFICATION ---
 
 const weatherScenarios = [
-  { 
-    id: 'heavy_rainfall', 
+  {
+    id: 'heavy_rainfall',
     name: 'Heavy Rainfall',
     icon: '🌧️',
     description: 'Intense precipitation conditions',
     severity: 'high'
   },
-  { 
-    id: 'dense_fog', 
+  {
+    id: 'dense_fog',
     name: 'Dense Fog',
     icon: '🌫️',
     description: 'Low visibility conditions',
     severity: 'medium'
   },
-  { 
-    id: 'cyclone_alert', 
+  {
+    id: 'cyclone_alert',
     name: 'Cyclone Alert',
     icon: '🌪️',
     description: 'Extreme weather warning',
     severity: 'critical'
   },
-  { 
-    id: 'clear_sky', 
+  {
+    id: 'clear_sky',
     name: 'Clear Sky',
     icon: '☀️',
     description: 'Return to normal conditions',
@@ -50,8 +51,8 @@ const severityStyles = {
   low: 'border-green-500/30 bg-gradient-to-r from-green-900/20 to-green-800/10 hover:from-green-800/30 hover:to-green-700/20'
 };
 
-// --- MODIFICATION: Added cyberControls to arguments ---
-export default function Sidebar({ cyberControls, blackoutControls }: SidebarProps) {
+// --- MODIFICATION: Added cyberControls and trafficControls to arguments ---
+export default function Sidebar({ cyberControls, blackoutControls, trafficControls }: SidebarProps) {
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [lastSimulation, setLastSimulation] = useState<string | null>(null);
   const router = useRouter();
@@ -60,7 +61,8 @@ export default function Sidebar({ cyberControls, blackoutControls }: SidebarProp
   const handleSimulate = async (scenarioId: string) => {
     setIsLoading(scenarioId);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/simulation/weather', {
+      const baseUrl = process.env.NEXT_PUBLIC_WEATHER_API_URL || 'http://localhost:8001';
+      const response = await fetch(`${baseUrl}/api/v1/simulation/weather`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scenario: scenarioId }),
@@ -69,7 +71,7 @@ export default function Sidebar({ cyberControls, blackoutControls }: SidebarProp
       const result = await response.json();
       console.log('Simulation successful:', result);
       setLastSimulation(scenarioId);
-      
+
       // Show success feedback
       setTimeout(() => setLastSimulation(null), 3000);
     } catch (error) {
@@ -96,6 +98,11 @@ export default function Sidebar({ cyberControls, blackoutControls }: SidebarProp
       icon: LayoutDashboard,
     },
     {
+      href: "/traffic",
+      label: "Traffic & Routing",
+      icon: LayoutDashboard, // Will replace with Navigation icon shortly
+    },
+    {
       href: "/cybersecurity",
       label: "Cybersecurity",
       icon: ShieldCheck,
@@ -108,6 +115,7 @@ export default function Sidebar({ cyberControls, blackoutControls }: SidebarProp
   ];
 
   const isDashboardPage = pathname === '/';
+  const isTrafficPage = pathname === '/traffic';
   const isCyberPage = pathname === '/cybersecurity';
   const isBlackoutPage = pathname === '/blackout';
 
@@ -144,7 +152,7 @@ export default function Sidebar({ cyberControls, blackoutControls }: SidebarProp
 
           {/* Navigation Sections */}
           <div className="space-y-6">
-            
+
             {navItems.map((item) => {
               const isActive = pathname === item.href;
               let activeClasses = '';
@@ -153,6 +161,9 @@ export default function Sidebar({ cyberControls, blackoutControls }: SidebarProp
               if (item.href === '/') { // Weather
                 activeClasses = 'bg-gradient-to-r from-blue-600/30 to-cyan-600/30 border-blue-500/50 ring-2 ring-blue-500/30';
                 inactiveClasses = 'border-blue-500/30 bg-gradient-to-r from-blue-900/20 to-cyan-800/10 hover:from-blue-800/30 hover:to-cyan-700/20';
+              } else if (item.href === '/traffic') { // Traffic
+                activeClasses = 'bg-gradient-to-r from-emerald-600/30 to-teal-600/30 border-emerald-500/50 ring-2 ring-emerald-500/30';
+                inactiveClasses = 'border-emerald-500/30 bg-gradient-to-r from-emerald-900/20 to-teal-800/10 hover:from-emerald-800/30 hover:to-teal-700/20';
               } else if (item.href === '/cybersecurity') { // Cyber
                 activeClasses = 'bg-gradient-to-r from-red-600/30 to-purple-600/30 border-red-500/50 ring-2 ring-red-500/30';
                 inactiveClasses = 'border-red-500/30 bg-gradient-to-r from-red-900/20 to-purple-800/10 hover:from-red-800/30 hover:to-purple-700/20';
@@ -203,7 +214,7 @@ export default function Sidebar({ cyberControls, blackoutControls }: SidebarProp
                 </button>
               )
             })}
-           
+
 
             {/* Weather Simulation Section - Only show on dashboard */}
             {isDashboardPage && (
@@ -228,11 +239,11 @@ export default function Sidebar({ cyberControls, blackoutControls }: SidebarProp
                       className={cn(
                         `group w-full text-left p-4 rounded-xl transition-all duration-300
                         border backdrop-blur-sm relative overflow-hidden`,
-                        isLoading === scenario.id 
-                          ? 'bg-gradient-to-r from-blue-600/30 to-purple-600/30 border-blue-500/50 cursor-wait' 
+                        isLoading === scenario.id
+                          ? 'bg-gradient-to-r from-blue-600/30 to-purple-600/30 border-blue-500/50 cursor-wait'
                           : severityStyles[scenario.severity as keyof typeof severityStyles],
-                        isLoading && isLoading !== scenario.id 
-                          ? 'opacity-50 cursor-not-allowed' 
+                        isLoading && isLoading !== scenario.id
+                          ? 'opacity-50 cursor-not-allowed'
                           : 'hover:transform hover:scale-[1.02] hover:shadow-lg',
                         lastSimulation === scenario.id ? 'ring-2 ring-green-500/50' : '',
                         'disabled:transform-none'
@@ -242,7 +253,7 @@ export default function Sidebar({ cyberControls, blackoutControls }: SidebarProp
                       {isLoading === scenario.id && (
                         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20 animate-pulse" />
                       )}
-                      
+
                       <div className="relative flex items-start space-x-3">
                         <div className="flex-shrink-0">
                           <span className="text-2xl">{scenario.icon}</span>
@@ -288,7 +299,7 @@ export default function Sidebar({ cyberControls, blackoutControls }: SidebarProp
                     SOAR pipeline monitoring all zones. Use the simulator to test response capabilities.
                   </p>
                 </div>
-                
+
                 {/* --- NEW: Render Cyber Controls --- */}
                 {cyberControls}
               </div>
@@ -308,9 +319,27 @@ export default function Sidebar({ cyberControls, blackoutControls }: SidebarProp
                     AI-driven blackout management. Use the simulator to test power allocation.
                   </p>
                 </div>
-                
+
                 {/* --- Render Blackout Controls --- */}
                 {blackoutControls}
+              </div>
+            )}
+
+            {/* Traffic Info - Renders controls from prop */}
+            {isTrafficPage && (
+              <div className="space-y-4 pt-4 border-t border-gray-700/30">
+                <div className="p-4 bg-emerald-900/20 border border-emerald-500/30 rounded-xl">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                    <span className="text-emerald-400 font-semibold text-sm">TRAFFIC SENSORS ACTIVE</span>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Live ArcGIS network monitoring. Calculate optimal routes avoiding congestion and severe weather.
+                  </p>
+                </div>
+
+                {/* --- Render Traffic Controls --- */}
+                {trafficControls}
               </div>
             )}
           </div>

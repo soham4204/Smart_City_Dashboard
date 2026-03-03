@@ -36,6 +36,15 @@ class LightPole(SQLModel, table=True):
     def location(self) -> Tuple[float, float]:
         return (self.latitude, self.longitude)
 
+class WeatherAnomaly(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    zone_id: str
+    condition: str
+    bbox_min_lon: float
+    bbox_min_lat: float
+    bbox_max_lon: float
+    bbox_max_lat: float
+
 # --- API Data Transfer Objects (DTOs) ---
 # These are used for Request/Response to ensure we don't break the Frontend
 

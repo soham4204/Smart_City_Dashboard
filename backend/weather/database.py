@@ -1,12 +1,15 @@
 # backend/weather/database.py
 from sqlmodel import SQLModel, create_engine, Session, select
+from sqlalchemy.orm import sessionmaker
 from models import Zone, LightPole
 
-# Creates a file named 'smartcity.db' in the same folder
-sqlite_file_name = "smartcity.db"
+import os
+# Creates a file named 'smartcity.db' in the backend/weather folder
+sqlite_file_name = os.path.join(os.path.dirname(__file__), "smartcity.db")
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 engine = create_engine(sqlite_url, echo=False)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, class_=Session)
 
 def get_session():
     with Session(engine) as session:

@@ -75,16 +75,21 @@ def data_collection_node(state: AgentState) -> Dict[str, Any]:
     print("---NODE: Data Collection---")
     scenario = state.get("scenario")
     
-    # Use mock weather for simulations, otherwise fetch real data
     if scenario:
         print(f"--- Using Mock Weather for Scenario: {scenario} ---")
         state["weather_data"] = get_mock_weather_for_scenario(scenario)
     else:
-        collector_tools.get_live_weather(state['location'], state)
+        state["weather_data"] = collector_tools.fetch_weather_data.invoke({"location": state.get('location', 'Mumbai')})
 
-    # ✅ CORRECT (Using .invoke)
-    collector_tools.get_enhanced_synthetic_cctv_data.invoke({"zone_id": state['zone_id']})
-    collector_tools.get_enhanced_synthetic_iot_sensor_data(state['zone_id'], state)
+    # Call CCTV data correctly
+    state["cctv_data"] = collector_tools.get_enhanced_synthetic_cctv_data.invoke({"time_of_day": "day"})
+    
+    # Mock IoT Data
+    state["iot_data"] = {
+        "status": "online",
+        "zone_id": state.get('zone_id', 'unknown'),
+        "flood_level_mm": 150 if scenario and "rain" in scenario else 0
+    }
 
     return {
         "weather_data": state.get("weather_data", {}),

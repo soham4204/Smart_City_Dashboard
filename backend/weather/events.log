@@ -277,3 +277,46 @@ Activation of the emergency operations center is a reasonable and effective acti
 12:37:16 AM | Config Update | Zone: CSM International Airport updated config.
 12:17:02 AM | Simulation Triggered | Scenario: heavy_rainfall
 12:21:39 AM | Simulation Triggered | Scenario: heavy_rainfall
+06:13:40 PM | Simulation Triggered | Scenario: heavy_rainfall
+06:13:52 PM | Simulation Triggered | Scenario: heavy_rainfall
+06:15:08 PM | Simulation Triggered | Scenario: heavy_rainfall
+06:24:29 PM | Simulation Triggered | Scenario: heavy_rainfall
+06:24:31 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:25:40 PM | Simulation Triggered | Scenario: heavy_rainfall
+06:25:43 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:25:50 PM | Simulation Triggered | Scenario: heavy_rainfall
+06:25:51 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:25:58 PM | Simulation Triggered | Scenario: dense_fog
+06:25:59 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:26:08 PM | Simulation Triggered | Scenario: cyclone_alert
+06:26:09 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:26:15 PM | Simulation Triggered | Scenario: clear_sky
+06:26:16 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:26:19 PM | Simulation Triggered | Scenario: heavy_rainfall
+06:26:20 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:26:28 PM | Simulation Triggered | Scenario: dense_fog
+06:26:29 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:26:31 PM | Simulation Triggered | Scenario: clear_sky
+06:26:32 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:26:42 PM | Simulation Triggered | Scenario: dense_fog
+06:26:43 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:26:55 PM | Simulation Triggered | Scenario: heavy_rainfall
+06:26:56 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:27:48 PM | Simulation Triggered | Scenario: dense_fog
+06:27:49 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:27:52 PM | Simulation Triggered | Scenario: cyclone_alert
+06:27:53 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:27:59 PM | Simulation Triggered | Scenario: clear_sky
+06:28:00 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:28:27 PM | Simulation Triggered | Scenario: heavy_rainfall
+06:28:28 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:28:33 PM | Simulation Triggered | Scenario: clear_sky
+06:28:34 PM | Agent Decision | Set 5 poles to 85% brightness.
+06:31:40 PM | Simulation Triggered | Scenario: heavy_rainfall
+06:31:42 PM | Agent Decision | Set 5 poles to 85% brightness.
+12:48:17 AM | Simulation Triggered | Scenario: heavy_rainfall
+12:48:17 AM | Weather Anomaly Created | Zone: CSM International Airport
+12:48:18 AM | Agent Decision | Set 5 poles to 85% brightness.
+12:53:36 AM | Simulation Triggered | Scenario: heavy_rainfall
+12:53:36 AM | Weather Anomaly Created | Zone: CSM International Airport
+12:53:37 AM | Agent Decision | Set 5 poles to 85% brightness.

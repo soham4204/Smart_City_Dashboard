@@ -1,0 +1,4 @@
+﻿src/components/blackout/BlackoutMap.tsx(133,32): error TS2365: Operator '>' cannot be applied to types 'string' and 'number'.
+src/components/blackout/BlackoutMap.tsx(133,67): error TS2365: Operator '>' cannot be applied to types 'string' and 'number'.
+src/components/InteractiveMap.tsx(27,44): error TS2339: Property 'fused_environmental_state' does not exist on type 'AgentResult'.
+src/components/Map3DComponent.tsx(89,11): error TS2353: Object literal may only specify known properties, and 'atmosphere' does not exist in type 'SceneViewEnvironmentProperties'.

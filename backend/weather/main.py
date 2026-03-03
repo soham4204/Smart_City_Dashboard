@@ -1,4 +1,8 @@
 # backend/weather/main.py
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+import patch_wmi
+
 import json
 import random
 from datetime import datetime
@@ -9,7 +13,7 @@ from sqlmodel import Session, select, SQLModel  # Added SQLModel to imports
 # Local imports
 from websocket_manager import manager
 from agent import agent_app
-from models import Zone, LightPole, SimulationRequest, OverrideRequest, ZoneCreate
+from models import Zone, LightPole, SimulationRequest, OverrideRequest, ZoneCreate, WeatherAnomaly
 from database import create_db_and_tables, get_session, seed_data_if_empty
 
 # --- App Setup ---
@@ -17,7 +21,7 @@ app = FastAPI(title="Smart City Dashboard API", version="2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"], 
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -151,6 +155,36 @@ async def simulate_weather(request: SimulationRequest, session: Session = Depend
     
     log_event(f"Simulation Triggered | Scenario: {request.scenario}")
     
+    # --- WEATHER ANOMALY INJECTION FOR TRAFFIC ROUTING ---
+    # Clear old anomalies
+    old_anomalies = session.exec(select(WeatherAnomaly)).all()
+    for anomaly in old_anomalies:
+        session.delete(anomaly)
+        
+    scene_lower = request.scenario.lower()
+    if "rain" in scene_lower or "storm" in scene_lower:
+        # Create a bounding box based on the target zone's poles
+        lats = [p.latitude for p in target_zone.poles]
+        lons = [p.longitude for p in target_zone.poles]
+        
+        # Add a buffer to make the zone larger
+        padding = 0.005
+        
+        if lats and lons:
+            new_anomaly = WeatherAnomaly(
+                zone_id=target_zone.id,
+                condition="Heavy Rain/Storm",
+                bbox_min_lon=min(lons) - padding,
+                bbox_max_lon=max(lons) + padding,
+                bbox_min_lat=min(lats) - padding,
+                bbox_max_lat=max(lats) + padding,
+            )
+            session.add(new_anomaly)
+            log_event(f"Weather Anomaly Created | Zone: {target_zone.name}")
+            
+    session.commit()
+    # -----------------------------------------------------
+
     # 2. Run Agent
     inputs = {
         "scenario": request.scenario,

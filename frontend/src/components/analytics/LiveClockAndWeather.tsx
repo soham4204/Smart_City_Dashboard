@@ -18,27 +18,36 @@ export default function LiveClockAndWeather() {
   useEffect(() => {
     // Set time immediately on client mount
     setTime(new Date());
-    
+
     const timer = setInterval(() => setTime(new Date()), 1000);
 
-    const fetchWeather = () => {
-        const hour = new Date().getHours();
-        if (hour > 6 && hour < 19) {
-            setWeather({ temp: 31, condition: 'Sunny', icon: <Sun className="w-10 h-10 text-yellow-400" /> });
+    const fetchWeather = async () => {
+      try {
+        // Using a sample coordinate (ArcGIS Mumbai center approximately)
+        const baseUrl = process.env.NEXT_PUBLIC_WEATHER_API_URL || 'http://localhost:8001';
+        const res = await fetch(`${baseUrl}/api/v1/dashboard/initial-state`);
+        if (!res.ok) throw new Error("Weather fetch failed");
+
+        const data = await res.json();
+        // The backend returns zones, let's pick a representative value or just stick to a default if logic is complex
+        // For now, let's calculate a simple average or just take from the first pole of the first zone
+        if (data.zones && data.zones.length > 0 && data.zones[0].poles.length > 0) {
+          const samplePole = data.zones[0].poles[0];
+          setWeather({
+            temp: Math.round(samplePole.temperature),
+            condition: 'Mumbai Region', // We can enhance this later with real condition if agent provides it
+            icon: <Sun className="w-10 h-10 text-yellow-400" />
+          });
         } else {
-             // Fix 2, 3, 4: Use camelCase for SVG attributes (strokeWidth, strokeLinecap, strokeLinejoin)
-             setWeather({ 
-               temp: 26, 
-               condition: 'Clear Night', 
-               icon: (
-                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                   <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-                 </svg>
-               )
-             });
+          throw new Error("No sensor data available");
         }
+      } catch (err) {
+        console.error("Failed to fetch weather", err);
+        // Fallback to mock if API fails
+        setWeather({ temp: 31, condition: 'Mumbai (Simulated)', icon: <Sun className="w-10 h-10 text-yellow-400" /> });
+      }
     };
-    
+
     fetchWeather();
     const weatherInterval = setInterval(fetchWeather, 300000);
 
@@ -61,7 +70,7 @@ export default function LiveClockAndWeather() {
           {time.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </div>
       </div>
-      
+
       {weather && (
         <div className="flex items-center space-x-4">
           <div className="text-4xl">

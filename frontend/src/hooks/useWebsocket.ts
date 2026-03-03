@@ -3,7 +3,7 @@ import { useDispatch } from 'react-redux';
 import { AppDispatch } from '@/lib/redux/store';
 import { setDashboardState, setLoading, setError } from '@/lib/redux/dashboardSlice';
 
-const WEBSOCKET_URL = 'ws://localhost:8000/ws/updates';
+const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEATHER_WS_URL || 'ws://localhost:8001/ws/updates';
 const RECONNECT_INTERVAL = 5000; // 5 seconds
 const MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -14,7 +14,7 @@ export function useWebSocket() {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   const [status, setStatus] = useState<WebSocketStatus>('disconnected');
 
   const clearReconnectTimeout = useCallback(() => {
@@ -36,23 +36,23 @@ export function useWebSocket() {
 
     dispatch(setLoading());
     setStatus('connecting');
-    
+
     socketRef.current = new WebSocket(WEBSOCKET_URL);
 
     socketRef.current.onopen = () => {
       console.log('✅ WebSocket connection established');
       setStatus('connected');
-      reconnectAttemptsRef.current = 0; 
+      reconnectAttemptsRef.current = 0;
     };
 
     socketRef.current.onmessage = (event) => {
       try {
         const updatedState = JSON.parse(event.data);
-        
+
         // FIXED: Handle simplified and consistent payload from backend
         dispatch(setDashboardState({
-          zones: updatedState.zones, 
-          agentResult: updatedState.agentResult 
+          zones: updatedState.zones,
+          agentResult: updatedState.agentResult
         }));
 
       } catch (error) {
@@ -64,7 +64,7 @@ export function useWebSocket() {
     socketRef.current.onclose = () => {
       console.warn('🔌 WebSocket closed');
       setStatus('disconnected');
-      
+
       if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
         reconnectAttemptsRef.current += 1;
         console.log(`🔄 Attempting to reconnect... (${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
