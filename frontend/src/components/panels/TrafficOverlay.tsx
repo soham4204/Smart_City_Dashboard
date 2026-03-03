@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { MapPin, Navigation, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { MapPin, Navigation, AlertTriangle, CheckCircle2, Clock, Activity, Info } from 'lucide-react';
 import AsyncSelect from 'react-select/async';
 
 interface TrafficOverlayProps {
     onCalculateRoute: (origin: [number, number], destination: [number, number]) => void;
     routeSummary: string | null;
     impactState: string | null;
+    durationMin: number | null;
+    distanceKm: number | null;
     onClear: () => void;
 }
 
@@ -15,6 +17,8 @@ export default function TrafficOverlay({
     onCalculateRoute,
     routeSummary,
     impactState,
+    durationMin,
+    distanceKm,
     onClear
 }: TrafficOverlayProps) {
     // Default locations for Mumbai to provide instant options
@@ -100,60 +104,70 @@ export default function TrafficOverlay({
 
     // Dark theme styles for react-select
     const selectStyles = {
-        control: (base: any) => ({
+        control: (base: any, state: any) => ({
             ...base,
-            backgroundColor: '#1e293b', // bg-slate-800
-            borderColor: '#334155', // border-slate-700
+            backgroundColor: 'rgba(15, 23, 42, 0.6)', // slate-900/60
+            borderColor: state.isFocused ? '#10b981' : 'rgba(255, 255, 255, 0.1)',
+            boxShadow: state.isFocused ? '0 0 0 1px rgba(16, 185, 129, 0.2)' : 'none',
             color: 'white',
             padding: '2px',
+            borderRadius: '12px',
+            backdropFilter: 'blur(10px)',
+            '&:hover': {
+                borderColor: 'rgba(255, 255, 255, 0.2)'
+            }
         }),
         menu: (base: any) => ({
             ...base,
-            backgroundColor: '#0f172a', // bg-slate-900
-            zIndex: 50
+            backgroundColor: '#0f172a',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            zIndex: 100,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
         }),
         option: (base: any, state: any) => ({
             ...base,
-            backgroundColor: state.isFocused ? '#1e293b' : '#0f172a',
-            color: 'white',
+            backgroundColor: state.isFocused ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+            color: state.isFocused ? '#10b981' : 'white',
+            padding: '10px 12px',
             '&:active': {
-                backgroundColor: '#334155'
+                backgroundColor: 'rgba(16, 185, 129, 0.2)'
             }
         }),
         singleValue: (base: any) => ({
             ...base,
-            color: 'white'
+            color: '#e2e8f0', // slate-200
+            fontWeight: '500'
         }),
         input: (base: any) => ({
             ...base,
             color: 'white',
-            "input": {
-                color: "white !important"
-            }
+            "input": { color: "white !important" }
         }),
         placeholder: (base: any) => ({
             ...base,
-            color: '#64748b' // text-slate-500
+            color: '#64748b' // slate-500
         })
     };
 
     return (
-        <div className="bg-slate-900/90 backdrop-blur border border-slate-700 rounded-xl shadow-2xl overflow-hidden ring-1 ring-white/10">
+        <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden ring-1 ring-white/5 transition-all duration-500 hover:ring-white/10">
             {/* Header */}
-            <div className="px-4 py-3 bg-gradient-to-r from-emerald-900/50 to-teal-900/50 border-b border-slate-700 flex items-center justify-between">
+            <div className="px-4 py-3 bg-gradient-to-r from-emerald-900/50 to-teal-900/50 border-b border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-emerald-400">
                     <Navigation className="w-5 h-5" />
-                    <h3 className="font-semibold tracking-wide">Route Finder</h3>
+                    <h3 className="font-semibold tracking-wide text-xs uppercase">Route Parameters</h3>
                 </div>
             </div>
 
             {/* Content */}
-            <div className="p-4 space-y-4">
+            <div className="p-5 space-y-5">
 
                 {/* Search Origin */}
                 <div className="space-y-1 z-50">
-                    <label className="text-slate-400 text-xs font-semibold px-1 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-emerald-400" /> ORIGIN
+                    <label className="text-slate-500 text-[10px] font-bold px-1 flex items-center gap-1 uppercase tracking-widest">
+                        <MapPin className="w-3 h-3 text-emerald-500" /> Origin
                     </label>
                     <AsyncSelect
                         cacheOptions
@@ -161,21 +175,16 @@ export default function TrafficOverlay({
                         defaultOptions={MUMBAI_DEFAULTS}
                         value={originOption}
                         onChange={(val: any) => setOriginOption(val)}
-                        placeholder="e.g. Gateway of India"
+                        placeholder="Select Origin..."
                         styles={selectStyles}
                         menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-                        noOptionsMessage={(obj: any) => {
-                            if (!obj.inputValue) return "Type to search locations...";
-                            if (obj.inputValue.length < 3) return "Type at least 3 characters...";
-                            return "No locations found.";
-                        }}
                     />
                 </div>
 
                 {/* Search Destination */}
                 <div className="space-y-1 z-40">
-                    <label className="text-slate-400 text-xs font-semibold px-1 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-purple-400" /> DESTINATION
+                    <label className="text-slate-500 text-[10px] font-bold px-1 flex items-center gap-1 uppercase tracking-widest">
+                        <MapPin className="w-3 h-3 text-violet-500" /> Destination
                     </label>
                     <AsyncSelect
                         cacheOptions
@@ -183,58 +192,71 @@ export default function TrafficOverlay({
                         defaultOptions={MUMBAI_DEFAULTS}
                         value={destOption}
                         onChange={(val: any) => setDestOption(val)}
-                        placeholder="e.g. Dadar Station, Mumbai"
+                        placeholder="Select Destination..."
                         styles={selectStyles}
                         menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-                        noOptionsMessage={(obj: any) => {
-                            if (!obj.inputValue) return "Type to search locations...";
-                            if (obj.inputValue.length < 3) return "Type at least 3 characters...";
-                            return "No locations found.";
-                        }}
                     />
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-2 z-10">
+                <div className="flex gap-3 pt-2 z-10">
                     <button
                         onClick={handleLocalClear}
-                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
+                        className="px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-xs font-bold transition-all uppercase tracking-wider active:scale-95"
                     >
-                        Clear
+                        Reset
                     </button>
                     <button
                         onClick={handleCalculate}
                         disabled={!originOption || !destOption || loading}
-                        className="flex-1 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-sm font-bold shadow-lg shadow-emerald-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                        className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2 relative group overflow-hidden uppercase tracking-widest"
                     >
-                        {loading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                        {loading ? 'Routing...' : 'Calculate Route'}
+                        <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-[20deg]" />
+                        {loading ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <Activity className="w-4 h-4" />
+                        )}
+                        <span className="relative z-10">{loading ? 'Computing...' : 'Calculate Route'}</span>
                     </button>
                 </div>
 
-                {/* Summary Output */}
+                {/* --- IMPORTANT METRICS DISPLAY --- */}
+                {durationMin !== null && distanceKm !== null && impactState !== 'Error' && (
+                    <div className="grid grid-cols-2 gap-3 animate-in zoom-in-95 duration-300">
+                        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-3 flex flex-col items-center justify-center text-center group transition-all hover:bg-emerald-500/10">
+                            <Clock className="w-5 h-5 text-emerald-400 mb-1 pointer-events-none group-hover:scale-110 transition-transform" />
+                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">EST. DURATION</div>
+                            <div className="text-lg font-black text-emerald-400">{durationMin} <span className="text-[10px] font-light italic">min</span></div>
+                        </div>
+                        <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-3 flex flex-col items-center justify-center text-center group transition-all hover:bg-blue-500/10">
+                            <Navigation className="w-5 h-5 text-blue-400 mb-1 pointer-events-none group-hover:scale-110 transition-transform" />
+                            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">TOTAL DISTANCE</div>
+                            <div className="text-lg font-black text-blue-400">{distanceKm} <span className="text-[10px] font-light italic">km</span></div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Summary / Analysis Output */}
                 {routeSummary && (
-                    <div className={`mt-4 p-3 rounded-lg border text-sm flex items-start gap-3 animate-in fade-in slide-in-from-top-4 duration-300 ${impactState === 'Route Impacted by Weather'
-                        ? 'bg-orange-900/20 border-orange-500/50 text-orange-200'
+                    <div className={`p-4 rounded-2xl border text-[11px] font-medium leading-relaxed flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 duration-400 ${impactState === 'Route Impacted by Weather'
+                        ? 'bg-orange-500/5 border-orange-500/30 text-orange-200'
                         : impactState === 'Clear'
-                            ? 'bg-emerald-900/20 border-emerald-500/50 text-emerald-200'
-                            : 'bg-red-900/20 border-red-500/50 text-red-200'
+                            ? 'bg-slate-800/40 border-white/5 text-slate-300'
+                            : 'bg-red-500/5 border-red-500/30 text-red-200'
                         }`}>
-                        {impactState === 'Route Impacted by Weather' ? (
-                            <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
-                        ) : impactState === 'Clear' ? (
-                            <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                        ) : (
-                            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                        )}
-                        <div>
-                            <p className="leading-relaxed">{routeSummary}</p>
-                            {/* Optional: Show resolved coordinates to prove we queried them */}
-                            {originCoords && destCoords && impactState !== 'Error' && (
-                                <p className="text-[10px] text-slate-500 mt-2 font-mono">
-                                    Resolved: {originCoords[1].toFixed(2)},{originCoords[0].toFixed(2)} → {destCoords[1].toFixed(2)},{destCoords[0].toFixed(2)}
-                                </p>
+                        <div className="mt-0.5">
+                            {impactState === 'Route Impacted by Weather' ? (
+                                <AlertTriangle className="w-4 h-4 text-orange-400" />
+                            ) : impactState === 'Clear' ? (
+                                <Info className="w-4 h-4 text-emerald-400" />
+                            ) : (
+                                <AlertTriangle className="w-4 h-4 text-red-400" />
                             )}
+                        </div>
+                        <div className="flex-1">
+                            <span className="block text-[9px] font-black uppercase tracking-[0.2em] mb-1 opacity-50">Intelligence Insight</span>
+                            {routeSummary}
                         </div>
                     </div>
                 )}

@@ -5,6 +5,19 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import * as esri from 'esri-leaflet';
 
+// --- Custom SVG Icons ---
+const createPulseIcon = (color: string) => L.divIcon({
+    className: 'custom-pulse-icon',
+    html: `
+        <div class="relative flex items-center justify-center">
+            <div class="absolute w-4 h-4 rounded-full animate-ping opacity-75" style="background-color: ${color}"></div>
+            <div class="relative w-3 h-3 rounded-full border-2 border-white shadow-lg" style="background-color: ${color}"></div>
+        </div>
+    `,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+});
+
 interface TrafficMapProps {
     routeData?: any; // Expects GeoJSON
 }
@@ -36,6 +49,26 @@ export default function TrafficMap({ routeData }: TrafficMapProps) {
 
             layerGroupRef.current = L.layerGroup().addTo(map);
             mapRef.current = map;
+
+            // Add Legend
+            const legend = new L.Control({ position: 'bottomleft' });
+            legend.onAdd = () => {
+                const div = L.DomUtil.create('div', 'info legend');
+                div.innerHTML = `
+                    <div class="bg-gray-900/80 backdrop-blur-md border border-white/10 p-3 rounded-xl shadow-2xl text-[10px] font-mono tracking-tighter">
+                        <div class="text-emerald-400 font-bold mb-2 uppercase opacity-70">Traffic Density</div>
+                        <div class="space-y-1.5 text-gray-300">
+                            <div class="flex items-center gap-2"><div class="w-2.5 h-1 rounded bg-green-500"></div> Low (Clear)</div>
+                            <div class="flex items-center gap-2"><div class="w-2.5 h-1 rounded bg-orange-500"></div> Moderate</div>
+                            <div class="flex items-center gap-2"><div class="w-2.5 h-1 rounded bg-red-600"></div> High (Congested)</div>
+                            <div class="flex items-center gap-2 border-t border-white/10 pt-1 mt-1"><div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div> Origin</div>
+                            <div class="flex items-center gap-2"><div class="w-2.5 h-2.5 rounded-full bg-violet-500"></div> Destination</div>
+                        </div>
+                    </div>
+                `;
+                return div;
+            };
+            legend.addTo(map);
         }
 
         return () => {
@@ -97,32 +130,25 @@ export default function TrafficMap({ routeData }: TrafficMapProps) {
                 mapRef.current.fitBounds(geojsonLayer.getBounds(), { padding: [50, 50] });
             }
 
-            // Draw start and end markers if it's a LineString
+            // Draw start and end markers
             if (routeData.type === 'FeatureCollection' && routeData.features.length > 0) {
-                const feature = routeData.features[0];
-                if (feature.geometry && feature.geometry.type === 'LineString') {
-                    const coords = feature.geometry.coordinates;
-                    if (coords.length > 0) {
-                        const startCoord = coords[0];
-                        const endCoord = coords[coords.length - 1];
+                // Find start (first feature) and end (last feature)
+                const firstFeature = routeData.features[0];
+                const lastFeature = routeData.features[routeData.features.length - 1];
 
-                        // Leaflet expects [lat, lng]
-                        L.circleMarker([startCoord[1], startCoord[0]], {
-                            radius: 8,
-                            fillColor: '#10b981', // emerald-500
-                            color: '#fff',
-                            weight: 2,
-                            fillOpacity: 1
-                        }).addTo(layerGroupRef.current);
+                if (firstFeature.geometry && firstFeature.geometry.coordinates) {
+                    const startCoord = firstFeature.geometry.coordinates[0];
+                    L.marker([startCoord[1], startCoord[0]], {
+                        icon: createPulseIcon('#10b981')
+                    }).addTo(layerGroupRef.current);
+                }
 
-                        L.circleMarker([endCoord[1], endCoord[0]], {
-                            radius: 8,
-                            fillColor: '#8b5cf6', // violet-500
-                            color: '#fff',
-                            weight: 2,
-                            fillOpacity: 1
-                        }).addTo(layerGroupRef.current);
-                    }
+                if (lastFeature.geometry && lastFeature.geometry.coordinates) {
+                    const endCoords = lastFeature.geometry.coordinates;
+                    const endCoord = endCoords[endCoords.length - 1];
+                    L.marker([endCoord[1], endCoord[0]], {
+                        icon: createPulseIcon('#8b5cf6')
+                    }).addTo(layerGroupRef.current);
                 }
             }
         }

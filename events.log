@@ -18,3 +18,18 @@
 10:32:55 PM | Simulation Triggered | Scenario: heavy_rainfall
 10:32:55 PM | Weather Anomaly Created | Zone: CSM International Airport
 10:32:55 PM | Agent Decision | Set 5 poles to 85% brightness.
+12:15:01 AM | Simulation Triggered | Scenario: dense_fog
+12:15:02 AM | Agent Decision | Set 5 poles to 85% brightness.
+12:18:27 AM | Simulation Triggered | Scenario: cyclone_alert
+12:18:27 AM | Weather Anomaly Created | Zone: CSM International Airport
+12:18:28 AM | Agent Decision | Set 5 poles to 85% brightness.
+12:19:26 AM | Simulation Triggered | Scenario: cyclone_alert
+12:19:26 AM | Weather Anomaly Created | Zone: CSM International Airport
+12:19:26 AM | Agent Decision | Set 5 poles to 85% brightness.
+12:20:56 AM | Simulation Triggered | Scenario: heavy_rainfall
+12:20:56 AM | Weather Anomaly Created | Zone: CSM International Airport
+12:20:56 AM | Agent Decision | Set 5 poles to 85% brightness.
+12:24:58 AM | Simulation Triggered | Scenario: dense_fog
+12:24:58 AM | Agent Decision | Set 5 poles to 85% brightness.
+12:37:17 AM | Simulation Triggered | Scenario: dense_fog
+12:37:18 AM | Agent Decision | Set 5 poles to 85% brightness.

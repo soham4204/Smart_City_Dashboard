@@ -24,6 +24,8 @@ class TrafficState(TypedDict):
     impact_state: str # 'Clear' or 'Route Impacted by Weather'
     route_summary: str # Text explanation
     final_route_geojson: Dict[str, Any] # Final output
+    duration_min: int
+    distance_km: float
 
 # --- 2. Define Nodes ---
 
@@ -44,32 +46,66 @@ def weather_db_query_node(state: TrafficState) -> Dict[str, Any]:
 
     return {"high_cost_zones": high_cost_zones}
 
-def osrm_routing_node(state: TrafficState) -> Dict[str, Any]:
-    """Uses OSRM Routing API to find a route."""
-    print("---NODE: OSRMRouting---")
+def arcgis_routing_node(state: TrafficState) -> Dict[str, Any]:
+    """Uses ArcGIS Routing API to find a traffic-aware route that also avoids weather zones."""
+    print("---NODE: ArcGISRouting---")
     origin = state["origin"]
     dest = state["destination"]
+    high_cost_zones = state.get("high_cost_zones", [])
+    key = os.getenv('ARCGIS_API_KEY')
+
+    # Construct Polygon Barriers from Weather Anomalies
+    barriers = []
+    for zone in high_cost_zones:
+        bbox = zone.get("bbox", [])
+        if len(bbox) == 4:
+            # ArcGIS ring: [[min_lon, min_lat], [max_lon, min_lat], [max_lon, max_lat], [min_lon, max_lat], [min_lon, min_lat]]
+            ring = [
+                [bbox[0], bbox[1]],
+                [bbox[2], bbox[1]],
+                [bbox[2], bbox[3]],
+                [bbox[0], bbox[3]],
+                [bbox[0], bbox[1]]
+            ]
+            barriers.append({"geometry": {"rings": [ring]}})
+
+    stops = f"{origin[0]},{origin[1]};{dest[0]},{dest[1]}"
+    url = "https://route-api.arcgis.com/arcgis/rest/services/World/Route/NAServer/Route_World/solve"
     
-    # OSRM expects {lon},{lat}
-    url = f"http://router.project-osrm.org/route/v1/driving/{origin[0]},{origin[1]};{dest[0]},{dest[1]}"
-    params = {
-        "overview": "full",
-        "geometries": "geojson",
-        "alternatives": "true" # Request multiple routes to find an evasive path
+    params: Dict[str, Any] = {
+        "stops": stops,
+        "f": "json",
+        "token": key,
+        "returnRoutes": "true",
+        "returnGeometry": "true",
+        "outSR": "4326",
+        "departureTime": "now",
     }
 
+    if barriers:
+        params["polygonBarriers"] = json.dumps({"features": barriers})
+
     try:
-        # Use headers to comply with OSRM public API policy
-        headers = {"User-Agent": "SmartCityDashboard/1.0"}
-        response = requests.get(url, params=params, headers=headers)
+        response = requests.get(url, params=params)
         data = response.json()
-        if data.get("code") != "Ok":
-            print("OSRM API Error:", data.get("message", "Unknown error"))
-            return {"base_route": {"error": data.get("message", "Unknown error")}}
+        
+        # Fallback: If barriers make it impossible to find a route, try once without them
+        if "error" in data and barriers:
+            print("ArcGIS Routing blocked by barriers. Retrying without them...")
+            params.pop("polygonBarriers", None)
+            response = requests.get(url, params=params)
+            data = response.json()
+            data["barriers_applied"] = False
         else:
-            return {"base_route": data}
+            data["barriers_applied"] = bool(barriers)
+        
+        if "error" in data:
+            print("ArcGIS API Error:", data["error"].get("message", "Unknown error"))
+            return {"base_route": {"error": data["error"].get("message")}}
+        
+        return {"base_route": data}
     except Exception as e:
-        print("OSRM Request Failed:", e)
+        print("ArcGIS Request Failed:", e)
         return {"base_route": {"error": str(e)}}
 
 def is_point_in_bbox(point: List[float], bbox: List[float]) -> bool:
@@ -80,78 +116,68 @@ def is_point_in_bbox(point: List[float], bbox: List[float]) -> bool:
 def impact_analysis_node(state: TrafficState) -> Dict[str, Any]:
     """Cross-references the route with high-cost (Heavy Rain/Storm) zones."""
     print("---NODE: ImpactAnalysis---")
-    base_route = state.get("base_route", {})
-    high_cost_zones = state.get("high_cost_zones", [])
+    # Use direct access to avoid 'object' type issues from get()
+    base_route = state["base_route"]
+    high_cost_zones = state["high_cost_zones"]
     
-    # 1. Evaluate all available routes
-    routes = base_route.get("routes", [])
-    if not routes:
+    # 1. Evaluate routes from ArcGIS
+    # Correctly navigate the ArcGIS response structure
+    routes_obj = base_route.get("routes", {})
+    if not isinstance(routes_obj, dict): routes_obj = {}
+    routes_data = routes_obj.get("features", [])
+    if not routes_data:
         return {
             "impact_state": "Error",
-            "route_summary": "No valid routes found by the navigation server.",
+            "route_summary": f"No valid routes found: {base_route.get('error', 'Unknown Error')}",
             "final_route_geojson": {"type": "FeatureCollection", "features": []}
         }
 
-    scored_routes = []
-    for idx, route in enumerate(routes):
-        route_coords = route.get("geometry", {}).get("coordinates", [])
-        impact_count = 0
-        impacted_zones = set()
-
-        for coord in route_coords:
-            for zone in high_cost_zones:
-                if is_point_in_bbox(coord, zone["bbox"]):
-                    impact_count += 1
-                    impacted_zones.add(zone["name"])
-        
-        scored_routes.append({
-            "route_idx": idx,
-            "route": route,
-            "impact_count": impact_count,
-            "impacted_zones": list(impacted_zones),
-            "duration": route.get("duration", 0),
-            "distance": route.get("distance", 0)
-        })
-
-    # 2. Select the best route (Prioritize safety, then speed)
-    # Sort by impact count (asc), then duration (asc)
-    scored_routes.sort(key=lambda x: (x["impact_count"], x["duration"]))
-    best_option = scored_routes[0]
+    # ArcGIS typically returns one optimal route for 'Driving Time' with traffic
+    # We will score it against our local weather anomalies
+    route_feature = routes_data[0]
+    attributes = route_feature.get("attributes", {})
+    if not isinstance(attributes, dict): attributes = {}
+    geometry = route_feature.get("geometry", {})
+    if not isinstance(geometry, dict): geometry = {}
     
-    selected_route = best_option["route"]
-    impacted = best_option["impact_count"] > 0
-    impacted_zone_names = best_option["impacted_zones"]
-    route_coords = selected_route.get("geometry", {}).get("coordinates", [])
-    duration_min = round(selected_route.get("duration", 0) / 60)
-    
-    # Check if we successfully avoided weather
-    avoided_weather = False
-    if len(scored_routes) > 1 and best_option["impact_count"] == 0:
-        # Check if other routes had impacts
-        if any(r["impact_count"] > 0 for r in scored_routes):
-            avoided_weather = True
+    # ArcGIS paths are in 'paths': [[[lng, lat], [lng, lat], ...]]
+    paths = geometry.get("paths", [])
+    route_coords: List[List[float]] = paths[0] if paths else []
 
+    impact_count: int = 0
+    impacted_zones = set()
+
+    for coord in route_coords:
+        for zone in high_cost_zones:
+            bbox: List[float] = list(zone.get("bbox", []))
+            if is_point_in_bbox(coord, bbox):
+                impact_count += 1
+                impacted_zones.add(str(zone.get("name", "Unknown")))
+
+    duration_min = round(attributes.get("Total_TravelTime", 0)) # Uses live traffic time
+    distance_km = round(attributes.get("Total_Kilometers", 0), 2)
+    
     # 3. Formulate Summary
+    impacted = impact_count > 0
+    barriers_applied = base_route.get("barriers_applied", False)
+
     if impacted:
         impact_state = "Route Impacted by Weather"
-        zones_str = ", ".join(impacted_zone_names)
-        summary = f"ETA: {duration_min} mins. NOTICE: No safe alternative found. Route passes through high-risk zones ({zones_str})."
-    elif avoided_weather:
+        zones_str = ", ".join(list(impacted_zones))
+        summary = f"ETA: {duration_min} mins ({distance_km} km). NOTICE: Origin/Destination are within weather zones ({zones_str})."
+    elif barriers_applied:
         impact_state = "Clear"
-        summary = f"ETA: {duration_min} mins. SMART ROUTING: Found an alternative path to avoid severe weather zones. Route is safe."
-    elif "error" in base_route:
-        # This case is less likely now given the early exit, but kept for robustness
-        impact_state = "Error"
-        summary = "Failed to calculate a valid route over network."
+        summary = f"ETA: {duration_min} mins ({distance_km} km). SMART EVASIVE ROUTING: Successfully bypassed severe weather anomalies. Optimized for live traffic."
     else:
         impact_state = "Clear"
-        summary = f"ETA: {duration_min} mins. Route is clear of severe weather hazards."
+        summary = f"ETA: {duration_min} mins ({distance_km} km). Optimized for current live traffic flow."
         
     # 4. Build Segmented GeoJSON with Simulated Traffic Status
     import random
-    geojson = {
+    features_list: List[Dict[str, Any]] = []
+    geojson: Dict[str, Any] = {
         "type": "FeatureCollection",
-        "features": []
+        "features": features_list
     }
     
     if route_coords and len(route_coords) > 1:
@@ -176,7 +202,7 @@ def impact_analysis_node(state: TrafficState) -> Dict[str, Any]:
                         speed_color = "red"
                         status = "Severe"
 
-            geojson["features"].append({
+            features_list.append({
                 "type": "Feature",
                 "geometry": {
                     "type": "LineString",
@@ -193,19 +219,20 @@ def impact_analysis_node(state: TrafficState) -> Dict[str, Any]:
         "impact_state": impact_state,
         "route_summary": summary,
         "final_route_geojson": geojson,
-        "estimated_duration_min": duration_min
+        "duration_min": duration_min,
+        "distance_km": distance_km
     }
 
 # --- 3. Compile Graph ---
 workflow = StateGraph(TrafficState)
 
 workflow.add_node("weather_query", weather_db_query_node)
-workflow.add_node("osrm_routing", osrm_routing_node)
+workflow.add_node("arcgis_routing", arcgis_routing_node)
 workflow.add_node("impact_analysis", impact_analysis_node)
 
 workflow.set_entry_point("weather_query")
-workflow.add_edge("weather_query", "osrm_routing")
-workflow.add_edge("osrm_routing", "impact_analysis")
+workflow.add_edge("weather_query", "arcgis_routing")
+workflow.add_edge("arcgis_routing", "impact_analysis")
 workflow.add_edge("impact_analysis", END)
 
 traffic_app = workflow.compile()

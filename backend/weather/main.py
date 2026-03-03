@@ -162,7 +162,7 @@ async def simulate_weather(request: SimulationRequest, session: Session = Depend
         session.delete(anomaly)
         
     scene_lower = request.scenario.lower()
-    if "rain" in scene_lower or "storm" in scene_lower:
+    if "rain" in scene_lower or "storm" in scene_lower or "cyclone" in scene_lower:
         # Create a bounding box based on the target zone's poles
         lats = [p.latitude for p in target_zone.poles]
         lons = [p.longitude for p in target_zone.poles]

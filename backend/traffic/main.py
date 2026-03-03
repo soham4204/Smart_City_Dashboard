@@ -33,6 +33,8 @@ async def calculate_smart_route(request: RouteRequest):
     inputs = {
         "origin": request.origin,
         "destination": request.destination,
+        "duration_min": 0,
+        "distance_km": 0.0,
     }
     
     try:
@@ -46,5 +48,7 @@ async def calculate_smart_route(request: RouteRequest):
     return {
         "impact_state": result.get("impact_state", "Clear"),
         "route_summary": result.get("route_summary", "No summary available."),
-        "geojson": result.get("final_route_geojson", {})
+        "geojson": result.get("final_route_geojson", {}),
+        "duration_min": result.get("duration_min", 0),
+        "distance_km": result.get("distance_km", 0)
     }
