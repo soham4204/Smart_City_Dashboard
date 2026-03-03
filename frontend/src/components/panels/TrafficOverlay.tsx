@@ -11,6 +11,7 @@ interface TrafficOverlayProps {
     durationMin: number | null;
     distanceKm: number | null;
     onClear: () => void;
+    onWeatherSimulated: () => void;
 }
 
 export default function TrafficOverlay({
@@ -19,7 +20,8 @@ export default function TrafficOverlay({
     impactState,
     durationMin,
     distanceKm,
-    onClear
+    onClear,
+    onWeatherSimulated
 }: TrafficOverlayProps) {
     // Default locations for Mumbai to provide instant options
     const MUMBAI_DEFAULTS = [
@@ -31,6 +33,8 @@ export default function TrafficOverlay({
     ];
 
     const [loading, setLoading] = useState(false);
+    const [simRegion, setSimRegion] = useState("");
+    const [simCondition, setSimCondition] = useState("");
 
     // Selected options from react-select
     const [originOption, setOriginOption] = useState<{ value: string, label: string } | null>(null);
@@ -89,6 +93,43 @@ export default function TrafficOverlay({
         } catch (e) {
             console.error("Could not parse coordinates", e);
             alert("Error parsing selected locations.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSimulateWeather = async () => {
+        if (!simRegion || !simCondition) return;
+        setLoading(true);
+        try {
+            const apiBase = process.env.NEXT_PUBLIC_TRAFFIC_API_URL || 'http://localhost:8000';
+            const res = await fetch(`${apiBase}/api/v1/traffic/simulate-weather`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ region: simRegion, condition: simCondition })
+            });
+            if (res.ok) {
+                onWeatherSimulated();
+            }
+        } catch (e) {
+            console.error("Simulation failed", e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleClearWeather = async () => {
+        setLoading(true);
+        try {
+            const apiBase = process.env.NEXT_PUBLIC_TRAFFIC_API_URL || 'http://localhost:8000';
+            const res = await fetch(`${apiBase}/api/v1/traffic/clear-weather`, { method: 'DELETE' });
+            if (res.ok) {
+                setSimRegion("");
+                setSimCondition("");
+                onWeatherSimulated();
+            }
+        } catch (e) {
+            console.error("Clear failed", e);
         } finally {
             setLoading(false);
         }
@@ -219,6 +260,56 @@ export default function TrafficOverlay({
                         )}
                         <span className="relative z-10">{loading ? 'Computing...' : 'Calculate Route'}</span>
                     </button>
+                </div>
+
+                {/* --- WEATHER SIMULATION CONTROL --- */}
+                <div className="pt-2 border-t border-white/5 space-y-3">
+                    <div className="flex items-center gap-2 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-1">
+                        <AlertTriangle className="w-3 h-3 text-orange-500" /> Environment Simulation
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <select
+                            className="bg-slate-900/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50 transition-colors cursor-pointer"
+                            onChange={(e) => setSimRegion(e.target.value)}
+                            value={simRegion}
+                        >
+                            <option value="">Select Region...</option>
+                            <option value="Colaba">Colaba</option>
+                            <option value="Dadar">Dadar</option>
+                            <option value="BKC">BKC</option>
+                            <option value="Andheri">Andheri</option>
+                            <option value="Borivali">Borivali</option>
+                        </select>
+                        <select
+                            className="bg-slate-900/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50 transition-colors cursor-pointer"
+                            onChange={(e) => setSimCondition(e.target.value)}
+                            value={simCondition}
+                        >
+                            <option value="">Condition...</option>
+                            <option value="Cyclone">Cyclone</option>
+                            <option value="Heavy Rain">Heavy Rain</option>
+                            <option value="Dense Fog">Dense Fog</option>
+                        </select>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleClearWeather}
+                            className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                        >
+                            Reset sky
+                        </button>
+                        <button
+                            onClick={handleSimulateWeather}
+                            disabled={!simRegion || !simCondition || loading}
+                            className="flex-[2] py-3 bg-orange-500/10 hover:bg-orange-600/20 border border-orange-500/30 text-orange-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-30 flex items-center justify-center gap-2 relative overflow-hidden group active:scale-95 shadow-lg shadow-orange-500/10"
+                        >
+                            <div className="absolute inset-0 bg-orange-400/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-[20deg]" />
+                            <Activity className="w-4 h-4" />
+                            Launch Hazard
+                        </button>
+                    </div>
                 </div>
 
                 {/* --- IMPORTANT METRICS DISPLAY --- */}

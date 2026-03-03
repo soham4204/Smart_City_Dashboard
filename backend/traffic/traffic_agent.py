@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-from typing import TypedDict, Dict, Any, List
+from typing import TypedDict, Dict, Any, List, Set
 from dotenv import load_dotenv
 from sqlmodel import select
 from langgraph.graph import StateGraph, END
@@ -37,12 +37,13 @@ def weather_db_query_node(state: TrafficState) -> Dict[str, Any]:
     with SessionLocal() as session:
         anomalies = session.exec(select(WeatherAnomaly)).all()
         for anomaly in anomalies:
-            high_cost_zones.append({
-                "zone_id": anomaly.zone_id,
-                "name": f"Zone {anomaly.zone_id}", # Simplify name lookup for speed
-                "condition": anomaly.condition,
-                "bbox": [anomaly.bbox_min_lon, anomaly.bbox_min_lat, anomaly.bbox_max_lon, anomaly.bbox_max_lat]
-            })
+            if anomaly.condition in ["Cyclone", "Heavy Rain", "Dense Fog"]:
+                high_cost_zones.append({
+                    "zone_id": anomaly.zone_id,
+                    "name": anomaly.zone_id,
+                    "condition": anomaly.condition,
+                    "bbox": [anomaly.bbox_min_lon, anomaly.bbox_min_lat, anomaly.bbox_max_lon, anomaly.bbox_max_lat]
+                })
 
     return {"high_cost_zones": high_cost_zones}
 
@@ -51,11 +52,11 @@ def arcgis_routing_node(state: TrafficState) -> Dict[str, Any]:
     print("---NODE: ArcGISRouting---")
     origin = state["origin"]
     dest = state["destination"]
-    high_cost_zones = state.get("high_cost_zones", [])
+    high_cost_zones = state["high_cost_zones"]
     key = os.getenv('ARCGIS_API_KEY')
 
     # Construct Polygon Barriers from Weather Anomalies
-    barriers = []
+    barriers: List[Dict[str, Any]] = []
     for zone in high_cost_zones:
         bbox = zone.get("bbox", [])
         if len(bbox) == 4:
@@ -145,17 +146,17 @@ def impact_analysis_node(state: TrafficState) -> Dict[str, Any]:
     route_coords: List[List[float]] = paths[0] if paths else []
 
     impact_count: int = 0
-    impacted_zones = set()
+    impacted_zones: Set[str] = set()
 
     for coord in route_coords:
         for zone in high_cost_zones:
             bbox: List[float] = list(zone.get("bbox", []))
             if is_point_in_bbox(coord, bbox):
-                impact_count += 1
+                impact_count = int(impact_count) + 1
                 impacted_zones.add(str(zone.get("name", "Unknown")))
 
-    duration_min = round(attributes.get("Total_TravelTime", 0)) # Uses live traffic time
-    distance_km = round(attributes.get("Total_Kilometers", 0), 2)
+    duration_min = int(attributes.get("Total_TravelTime", 0)) # Uses live traffic time
+    distance_km = float(f"{float(attributes.get('Total_Kilometers', 0)):.2f}")
     
     # 3. Formulate Summary
     impacted = impact_count > 0
