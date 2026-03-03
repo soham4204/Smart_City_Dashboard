@@ -5,11 +5,10 @@ import { useRouter, usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, ShieldCheck, PowerOff, Building } from 'lucide-react';
 
-// --- MODIFICATION: Added cyberControls and trafficControls prop ---
+// --- MODIFICATION: Added cyberControls prop ---
 interface SidebarProps {
   cyberControls?: ReactNode;
   blackoutControls?: ReactNode;
-  trafficControls?: ReactNode;
 }
 // --- END OF MODIFICATION ---
 
@@ -51,8 +50,8 @@ const severityStyles = {
   low: 'border-green-500/30 bg-gradient-to-r from-green-900/20 to-green-800/10 hover:from-green-800/30 hover:to-green-700/20'
 };
 
-// --- MODIFICATION: Added cyberControls and trafficControls to arguments ---
-export default function Sidebar({ cyberControls, blackoutControls, trafficControls }: SidebarProps) {
+// --- MODIFICATION: Added cyberControls to arguments ---
+export default function Sidebar({ cyberControls, blackoutControls }: SidebarProps) {
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [lastSimulation, setLastSimulation] = useState<string | null>(null);
   const router = useRouter();
@@ -325,7 +324,7 @@ export default function Sidebar({ cyberControls, blackoutControls, trafficContro
               </div>
             )}
 
-            {/* Traffic Info - Renders controls from prop */}
+            {/* Traffic Info */}
             {isTrafficPage && (
               <div className="space-y-4 pt-4 border-t border-gray-700/30">
                 <div className="p-4 bg-emerald-900/20 border border-emerald-500/30 rounded-xl">
@@ -337,9 +336,6 @@ export default function Sidebar({ cyberControls, blackoutControls, trafficContro
                     Live ArcGIS network monitoring. Calculate optimal routes avoiding congestion and severe weather.
                   </p>
                 </div>
-
-                {/* --- Render Traffic Controls --- */}
-                {trafficControls}
               </div>
             )}
           </div>

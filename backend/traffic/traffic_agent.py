@@ -54,7 +54,8 @@ def osrm_routing_node(state: TrafficState) -> Dict[str, Any]:
     url = f"http://router.project-osrm.org/route/v1/driving/{origin[0]},{origin[1]};{dest[0]},{dest[1]}"
     params = {
         "overview": "full",
-        "geometries": "geojson"
+        "geometries": "geojson",
+        "alternatives": "true" # Request multiple routes to find an evasive path
     }
 
     try:
@@ -82,48 +83,71 @@ def impact_analysis_node(state: TrafficState) -> Dict[str, Any]:
     base_route = state.get("base_route", {})
     high_cost_zones = state.get("high_cost_zones", [])
     
-    impacted = False
-    impacted_zone_names = set()
-    
-    # 1. Extract the path coordinates
-    route_coords = []
-    if "routes" in base_route and len(base_route["routes"]) > 0:
-        geometry = base_route["routes"][0].get("geometry", {})
-        if geometry.get("type") == "LineString":
-            # OSRM gives a flat array of [lon, lat] points
-            route_coords = geometry.get("coordinates", [])
-        
-    # 2. Extract Duration and Distance
-    duration_sec = 0
-    distance_m = 0
-    if "routes" in base_route and len(base_route["routes"]) > 0:
-        duration_sec = base_route["routes"][0].get("duration", 0)
-        distance_m = base_route["routes"][0].get("distance", 0)
+    # 1. Evaluate all available routes
+    routes = base_route.get("routes", [])
+    if not routes:
+        return {
+            "impact_state": "Error",
+            "route_summary": "No valid routes found by the navigation server.",
+            "final_route_geojson": {"type": "FeatureCollection", "features": []}
+        }
 
-    duration_min = round(duration_sec / 60)
+    scored_routes = []
+    for idx, route in enumerate(routes):
+        route_coords = route.get("geometry", {}).get("coordinates", [])
+        impact_count = 0
+        impacted_zones = set()
+
+        for coord in route_coords:
+            for zone in high_cost_zones:
+                if is_point_in_bbox(coord, zone["bbox"]):
+                    impact_count += 1
+                    impacted_zones.add(zone["name"])
+        
+        scored_routes.append({
+            "route_idx": idx,
+            "route": route,
+            "impact_count": impact_count,
+            "impacted_zones": list(impacted_zones),
+            "duration": route.get("duration", 0),
+            "distance": route.get("distance", 0)
+        })
+
+    # 2. Select the best route (Prioritize safety, then speed)
+    # Sort by impact count (asc), then duration (asc)
+    scored_routes.sort(key=lambda x: (x["impact_count"], x["duration"]))
+    best_option = scored_routes[0]
     
-    # 3. Check Weather intersection on each coord
-    for coord in route_coords:
-        for zone in high_cost_zones:
-            if is_point_in_bbox(coord, zone["bbox"]):
-                impacted = True
-                impacted_zone_names.add(zone["name"])
-                impacted = True
-                impacted_zone_names.add(zone["name"])
+    selected_route = best_option["route"]
+    impacted = best_option["impact_count"] > 0
+    impacted_zone_names = best_option["impacted_zones"]
+    route_coords = selected_route.get("geometry", {}).get("coordinates", [])
+    duration_min = round(selected_route.get("duration", 0) / 60)
     
-    # 4. Formulate Summary
+    # Check if we successfully avoided weather
+    avoided_weather = False
+    if len(scored_routes) > 1 and best_option["impact_count"] == 0:
+        # Check if other routes had impacts
+        if any(r["impact_count"] > 0 for r in scored_routes):
+            avoided_weather = True
+
+    # 3. Formulate Summary
     if impacted:
         impact_state = "Route Impacted by Weather"
         zones_str = ", ".join(impacted_zone_names)
-        summary = f"ETA: {duration_min} mins. Route passes through high-risk zones ({zones_str}) experiencing Heavy Rain/Storm. Caution advised."
+        summary = f"ETA: {duration_min} mins. NOTICE: No safe alternative found. Route passes through high-risk zones ({zones_str})."
+    elif avoided_weather:
+        impact_state = "Clear"
+        summary = f"ETA: {duration_min} mins. SMART ROUTING: Found an alternative path to avoid severe weather zones. Route is safe."
     elif "error" in base_route:
+        # This case is less likely now given the early exit, but kept for robustness
         impact_state = "Error"
         summary = "Failed to calculate a valid route over network."
     else:
         impact_state = "Clear"
         summary = f"ETA: {duration_min} mins. Route is clear of severe weather hazards."
         
-    # 5. Build Segmented GeoJSON with Simulated Traffic Status
+    # 4. Build Segmented GeoJSON with Simulated Traffic Status
     import random
     geojson = {
         "type": "FeatureCollection",
@@ -131,12 +155,9 @@ def impact_analysis_node(state: TrafficState) -> Dict[str, Any]:
     }
     
     if route_coords and len(route_coords) > 1:
-        # Instead of 1 long line, generate small chunks representing street segments
-        # and assign a live traffic condition to them for the frontend
         for i in range(len(route_coords) - 1):
             segment = [route_coords[i], route_coords[i+1]]
             
-            # Simple simulation: most are green, some orange, few red
             traffic_val = random.random()
             if traffic_val < 0.7:
                 speed_color = "green"
@@ -148,13 +169,12 @@ def impact_analysis_node(state: TrafficState) -> Dict[str, Any]:
                 speed_color = "red"
                 status = "Heavy"
                 
-            # If weather impacted, boost chance of red in that bbox
-            if impacted:
-                for zone in high_cost_zones:
-                    if is_point_in_bbox(route_coords[i], zone["bbox"]):
-                        if random.random() < 0.6:
-                           speed_color = "red"
-                           status = "Severe"
+            # If weather impacted (this segment is in a bbox), boost chance of red
+            for zone in high_cost_zones:
+                if is_point_in_bbox(route_coords[i], zone["bbox"]):
+                    if random.random() < 0.6:
+                        speed_color = "red"
+                        status = "Severe"
 
             geojson["features"].append({
                 "type": "Feature",
